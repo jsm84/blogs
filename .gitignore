@@ -1,1 +1,3 @@
-openshift-ansible/*.html
+*.bak
+*.html
+*.key
