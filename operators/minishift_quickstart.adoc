@@ -1,0 +1,106 @@
+== Minishift 3.5 Quick Setup Guide
+
+This guide assumes a RHEL host OS.
+
+=== Setup the Virtualization Environment
+
+Install the `docker-machine-kvm` driver (the CDK is tested against version 0.7.0):
+
+----
+# curl -L https://github.com/dhiltgen/docker-machine-kvm/releases/download/v0.7.0/docker-machine-driver-kvm -o /usr/local/bin/docker-machine-driver-kvm
+# chmod +x /usr/local/bin/docker-machine-driver-kvm
+----
+
+Install `libvirt` and `qemu-kvm`:
+
+----
+# yum install libvirt qemu-kvm
+----
+
+Add yourselft to the `libvirt` group:
+
+----
+# usermod -a -G libvirt <username>
+----
+
+Update your active session to apply the group membership change:
+
+----
+$ newgrp libvirt
+----
+
+Start/enable the `libvirtd` service:
+
+----
+# systemctl start libvirtd
+# systemctl enable libvirtd
+----
+
+Once your virtual environment is setup, proceed onto the next section to install the CDK.
+
+=== Download and Install the CDK
+
+. Download the archive for your operating system from the https://developers.redhat.com/products/cdk/download/[Red Hat Container Development Kit Download] page, and extract the contents.
+. Copy the CDK binary into your preferred location (eg: `$HOME/bin` or `/usr/local/bin`).
+. Add the `minishift` binary to your `PATH` environment variable (not necessary if using the above suggested locations).
+
+=== Setting up the CDK
+
+The `minishift setup-cdk` command will get and configure the components needed to run the CDK on your system. By default, `minishift setup-cdk` places CDK content in your ~/.minishift` directory.
+
+Run the following command to setup the CDK for RHEL:
+
+----
+$ minishift setup-cdk
+Setting up CDK 3 on host using '/home/user/.minishift' as Minishift's home directory
+Copying minishift-rhel7.iso to '/home/user/.minishift/cache/iso/minishift-rhel7.iso'
+Copying oc to '/home/user/.minishift/cache/oc/v3.9.31/linux/oc'
+Creating configuration file '/home/user/.minishift/config/config.json'
+Creating marker file '/home/user/.minishift/cdk'
+Default add-ons anyuid, admin-user, xpaas, registry-route, che, eap-cd installed
+Default add-ons anyuid, admin-user, xpaas enabled
+CDK 3 setup complete.
+----
+
+=== Launch the CDK
+
+. The `minishift start` command will prompt you for your Red Hat Subscription Manager account credentials. You can enter the info upon being prompted, or you can:
+.. Skip the registration by appending the `--skip-registration` option to the `minishift start` command.
+.. Register permanently by exporting the credentials for Red Hat Subscription Manager as environment variables, so that `minishift` detects it automatically each time it starts, as shown below:
+
+----
+ export MINISHIFT_USERNAME='<RED_HAT_USERNAME>'
+$ export MINISHIFT_PASSWORD='<RED_HAT_PASSWORD>'
+$ echo export MINISHIFT_USERNAME=$MINISHIFT_USERNAME >> ~/.bashrc
+$ echo export MINISHIFT_PASSWORD=$MINISHIFT_PASSWORD >> ~/.bashrc
+----
+
+Run the `minishift start` command:
+
+----
+$ minishift start
+-- Starting profile 'minishift'
+...
+-- Minishift VM will be configured with ...
+   Memory:    4 GB
+   vCPUs :    2
+   Disk size: 20 GB
+-- Starting Minishift VM .......................... OK
+-- Registering machine using subscription-manager
+   Registration in progress ..................... OK [42s]
+...
+OpenShift server started.
+
+The server is accessible via web console at:
+    https://192.168.42.60:8443
+
+You are logged in as:
+    User:     developer
+    Password: <any value>
+
+To login as administrator:
+    oc login -u system:admin
+...
+----
+
+

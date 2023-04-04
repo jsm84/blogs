@@ -1,0 +1,102 @@
+== Using the Automation Broker
+
+From a fresh installation of OpenShift Container Platform 3.9, the https://automationbroker.io[Automation Broker] (formerly known as the Ansible Service Broker) is deployed by default. However, there is still some level of configuration required to get the ASB up and running after a fresh deployment of OCP. You'll need to either be logged into the OCP master host as root, or you can login to OpenShift as a `cluster-admin` to work with the Automation Broker. 
+
+Once logged in, change to the ASB project:
+
+----
+# oc project openshift-ansible-service-broker
+----
+
+Check the current state of the pods in the ASB project:
+
+----
+# oc get pods
+NAME                READY     STATUS    RESTARTS   AGE
+asb-1-deploy        0/1       Error     0          14d
+asb-etcd-1-deploy   0/1       Error     0          14d
+----
+
+In a default deployment of OpenShift, both pods will show errors. The `asb` pod requires the `asb-etcd` pod in order to run. However, the `asb-etcd` pod fails to run due to no persistent storage claims being available. You can see this by checking the state of the persistent volume claim for etcd:
+
+----
+# oc get pvc
+NAME      STATUS    VOLUME    CAPACITY   ACCESS MODES   STORAGECLASS   AGE
+etcd      Pending                                                      14d
+----
+
+In the above console output, the PVC is stuck in a pending state. In this case, there are no available persistent volumes to fulfill the claim. If you've defined a persistent storage host via the OCP installation (eg: by defining the `[nfs]` group in Ansible), then NFS gets configured for other services (such as the cluster etcd or registry), but _not_ the Automation Broker. You can easily add a NFS share to the storage host by adding an entry to `/etc/exports.d/openshift-ansible-exports` like so:
+
+----
+"/exports/registry" *(rw,root_squash)
+"/exports/metrics" *(rw,root_squash)
+"/exports/logging-es" *(rw,root_squash)
+"/exports/logging-es-ops" *(rw,root_squash)
+"/exports/etcd" *(rw,root_squash)
+"/exports/prometheus" *(rw,root_squash)
+"/exports/prometheus-alertmanager" *(rw,root_squash)
+"/exports/prometheus-alertbuffer" *(rw,root_squash)
+"/exports/asb-etcd" *(rw,root_squash)
+----
+
+Don't forget to create the new directory with the proper permissions, and re-export the shares:
+
+----
+# mkdir /exports/asb-etcd
+# chown nfsnobody:nfsnobody /exports/asb-etcd
+# exportfs -r
+----
+
+Once the new NFS share has been made available, you can then define a k8s persistent volume which points to the new share. Create a file named `asb-etcd-pvc.yml` in a text editor, with the following contents:
+
+----
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: asb-etcd
+spec:
+  capacity:
+    storage: 1Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  nfs:
+    path: /exports/asb-etcd
+    server: master.example.com
+----
+
+Before saving and exiting the text editor, correct the `server:` definition with the hostname of the NFS server in your OpenShift environment (shown as the master host in the example). You can also correct the claim size of `1Gi` to your desired minimum value, but we aren't using disk quotas or hard-limited partition sizes, so this is of little consequence (at least in this example). Once you've adjusted the persistent volume file to your liking, save and exit the editor. Add the persistent volume to your OpenShift cluster as follows:
+
+----
+# oc create -f asb-etcd-pvc.yml
+persistentvolume "asb-etcd" created
+----
+
+Now, if you go back and take a look at the persistent volume claim for the ASB, you'll see that it is bound to the new persistent volume:
+
+----
+# oc get pvc
+NAME      STATUS    VOLUME     CAPACITY   ACCESS MODES   STORAGECLASS   AGE
+etcd      Bound     asb-etcd   1Gi        RWO                           15d
+----
+
+The pods will still show the same errors as before, until they are restarted. You can force a restart of the `asb-etcd` deployment like so:
+
+----
+# oc rollout retry dc/asb-etcd
+deploymentconfig "asb-etcd" retried rollout #1
+----
+
+Steps to get ASB working:
+
+. Build / push your APB image using this https://link_to_asb_build_blog[outlined_process]
+. Update the ASB ConfigMap by editing the local_openshift registry whitelist to read `[.*-apb$]`
+. Delete the asb pod, and let the K8s API recreate it (don't run `apb bootstrap` even though it works similarly)
+. Check the logs of the ASB pod to see that it bootstrapped successfully
+. Run `apb list` and you should see your image listed (and also in the OCP Service Catalog)
+
+To delete images from the APB
+. Run `apb remove <image_id>`
+. Images are listed ImageStreams in the `openshift` project, but stay cached in the registry even after deleting the ImageStream corresponding to an image
+. Use the `oc adm prune` command to delete images. To perform a dry run in order to see which images are slated for removal, run `oc adm prune images`
+. To actually delete the listed images from the registry, use `oc adm prune images --confirm`
