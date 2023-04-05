@@ -105,7 +105,7 @@ appmon-64548758f4-hhlpb   1/1     Running   0          6s
 A couple of notes on the demo app:
 * The container image is accessible from quay.io/jmanning/ol-demo-app:latest
 * The Dockerfile, `.war` file, and CR files are found at https://github.com/jsm84/openliberty-operator-ocpz under `ol-app-install/`.
-* The source code for the [App] Mod Resorts demo app is located at https://github.com/IBM/appmod-resorts
+* The source code for the Mod Resorts app is located at https://github.com/IBM/appmod-resorts
 
 You can retrieve the route used to publish the demo app, and follow the URL to test the app (the following URL applies when using OpenShift local):
 ```
@@ -210,7 +210,7 @@ Note: The secret name in the previous command _does_ matter, as it must match th
 
 Create the `dynakube` CR which will be used to trigger the operator.
 [Download](https://github.com/jsm84/blogs/raw/assets/dynatrace-appmon/dynakube-appmon_cr.yaml) or paste the following yaml spec into a file named `dynakube-appmon_cr.yaml`.
-**Replace <environment-id>** in the yaml file with _your_ previously noted Dynatrace environment ID.
+**Replace** `<environment-id>` in the yaml file with _your_ previously noted Dynatrace environment ID.
 ```
 apiVersion: dynatrace.com/v1beta1
 kind: DynaKube
