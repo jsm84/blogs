@@ -114,7 +114,7 @@ Proceed through the self-signed certificate warning page, and you should be gree
 
 ![mod-resrts.png](https://github.com/jsm84/blogs/blob/assets/dynatrace-appmon/mod-resrts.png)
  
-Below is a list of resources for the demo app:
+### Demo App Resources:
 * The container image is accessible from quay.io/jmanning/ol-demo-app:latest
 * The Dockerfile, `.war` file, and CR files are found at https://github.com/jsm84/openliberty-operator-ocpz under `ol-app-install/`.
 * The source code for the Mod Resorts app is located at https://github.com/IBM/appmod-resorts
