@@ -16,7 +16,7 @@ The following items are required if you'd like to duplicate this process in your
 Note: This guide focused on using the command-line, but the admin console can be used if you prefer a GUI.
 This could also be used as a workaround in a non-supported client environment.
 
-## Install Java App
+## Install Demo App
 To start, lets begin with installing the demo app that will be monitored by OneAgent.
 App Mod[ernization] Resorts (not to be confused with App Mon[itoring]) is a simple java app designed to run on an IBM Websphere application server.
 The OpenLiberty Operator will assist here by creating and managing the OpenShift deployment, services and routes required to host the app.
@@ -102,7 +102,7 @@ NAME                      READY   STATUS    RESTARTS   AGE
 appmon-64548758f4-hhlpb   1/1     Running   0          6s
 ```
 
-A couple of notes on the demo app:
+Below is a list of resources for the demo app:
 * The container image is accessible from quay.io/jmanning/ol-demo-app:latest
 * The Dockerfile, `.war` file, and CR files are found at https://github.com/jsm84/openliberty-operator-ocpz under `ol-app-install/`.
 * The source code for the Mod Resorts app is located at https://github.com/IBM/appmod-resorts
