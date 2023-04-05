@@ -102,11 +102,6 @@ NAME                      READY   STATUS    RESTARTS   AGE
 appmon-64548758f4-hhlpb   1/1     Running   0          6s
 ```
 
-Below is a list of resources for the demo app:
-* The container image is accessible from quay.io/jmanning/ol-demo-app:latest
-* The Dockerfile, `.war` file, and CR files are found at https://github.com/jsm84/openliberty-operator-ocpz under `ol-app-install/`.
-* The source code for the Mod Resorts app is located at https://github.com/IBM/appmod-resorts
-
 You can retrieve the route used to publish the demo app, and follow the URL to test the app (the following URL applies when using OpenShift local):
 ```
 $ oc get route -n ol-demo-app
@@ -119,6 +114,11 @@ Proceed through the self-signed certificate warning page, and you should be gree
 
 ![mod-resrts.png](https://github.com/jsm84/blogs/blob/assets/dynatrace-appmon/mod-resrts.png)
  
+Below is a list of resources for the demo app:
+* The container image is accessible from quay.io/jmanning/ol-demo-app:latest
+* The Dockerfile, `.war` file, and CR files are found at https://github.com/jsm84/openliberty-operator-ocpz under `ol-app-install/`.
+* The source code for the Mod Resorts app is located at https://github.com/IBM/appmod-resorts
+
 
 ## Install Dynatrace Operator
 The next step is to install the operator, which will leverage Dynatrace OneAgent in the ol-demo-app pod to make app metrics available to the Dynatrace dashboard.
