@@ -18,7 +18,8 @@ This could also be used as a workaround in a non-supported client environment.
 
 ## Install Java App
 To start, lets begin with installing the demo app that will be monitored by OneAgent.
-In this case let's use a simple java app deployed on IBM Websphere (there are operators for this!).
+App Mod[ernization] Resorts (not to be confused with App Mon[itoring]) is a simple java app designed to run on an IBM Websphere application server.
+The OpenLiberty Operator will assist here by creating and managing the OpenShift deployment, services and routes required to host the app.
 
 Login to the OpenShift cluster as `kubeadmin` or another user with cluster-admin privileges:
 ```
@@ -31,9 +32,9 @@ You can keep these as a reference for a production deployment later, or remove t
 $ mkdir appmon-files && cd appmon-files
 ```
 
-Create the subscription yaml file which will be used to install the certified OpenLiberty Operator from the OperatorHub:
+Create the subscription yaml file which will be used to install the certified OpenLiberty Operator from OperatorHub.
+[Download](../../assets/dynatrace-appmon/olo_subscription.yaml) or paste the yaml spec below into a new file named `olo_subscription.yaml`.
 ```
-$ cat > olo_subscription.yaml << EOF
 apiVersion: operators.coreos.com/v1alpha1
 kind: Subscription
 metadata:
@@ -45,11 +46,10 @@ spec:
   name: open-liberty-certified
   source: certified-operators
   sourceNamespace: openshift-marketplace
-  startingCSV: open-liberty-operator.v0.8.1
-EOF
 ```
 
-Install OpenLiberty Operator by creating the olo-subscription.yaml in the (hard-coded) `openshift-operators` namespace on the cluster:
+Install OpenLiberty Operator by creating the `olo_subscription.yaml` in OpenShift.
+This command will create the subscription in the `openshift-operators` namespace on the cluster:
 ```
 $ oc create -f olo_subscription.yaml
 ```
@@ -66,13 +66,13 @@ Dynatrace operator will be configured later to monitor namespaces with this part
 $ oc label namespace ol-demo-app monitor=appMonitoring
 ``` 
 
-The next step is to create an `openlibertyapplication` Custom Resource (CR):
+The next step is to create an `openlibertyapplication` Custom Resource (CR) yaml file.
+[Download](../../assets/dynatrace-appmon/app-mod-withsslroute_cr.yaml) or paste the yaml spec below into a file named `app-mod-withsslroute_cr.yaml`:
 ```
-$ cat > app-mon-withsslroute_cr.yaml << EOF
 apiVersion: apps.openliberty.io/v1beta2
 kind: OpenLibertyApplication
 metadata:
-  name: appmon
+  name: appmod
 spec:
   expose: true
   route:
@@ -83,17 +83,16 @@ spec:
   pullPolicy: Always
   service:
     annotations:
-      service.beta.openshift.io/serving-cert-secret-name: appmon-svc-tls
-    certificateSecretRef: appmon-svc-tls
+      service.beta.openshift.io/serving-cert-secret-name: appmod-svc-tls
+    certificateSecretRef: appmod-svc-tls
     port: 9443
-EOF
 ```
 
 Edit the above yaml file to adjust the URL set in `spec.route.host` to your cluster domain (the hard-coded URL will work for OpenShift Local).
 
 Create the openlibertyapplication CR in the `ol-demo-app` namespace (the current context namespace) on the cluster:
 ```
-$ oc create -f app-mon-withsslroute_cr.yaml
+$ oc create -f app-mod-withsslroute_cr.yaml
 ```
 
 The application pod should now be running and showing a ready status:
@@ -105,27 +104,24 @@ appmon-64548758f4-hhlpb   1/1     Running   0          6s
 
 A couple of notes on the demo app:
 * The container image is accessible from quay.io/jmanning/ol-demo-app:latest
-* The Dockerfile, `.war` file, and CR files are found at github.com/jsm84/openliberty-operator-ocpz under `ol-app-install/`.
+* The Dockerfile, `.war` file, and CR files are found at https://github.com/jsm84/openliberty-operator-ocpz under `ol-app-install/`.
+* The source code for the [App] Mod Resorts demo app is located at https://github.com/IBM/appmod-resorts
 
-You can retrieve the route used to publish the demo app, and follow the URL to test the app:
+You can retrieve the route used to publish the demo app, and follow the URL to test the app (the following URL applies when using OpenShift local):
 ```
 $ oc get route -n ol-demo-app
 NAME     HOST/PORT                    PATH       SERVICES   PORT       TERMINATION   WILDCARD
 appmon   modresort.apps-crc.testing   /resorts   appmon     9443-tcp   reencrypt     None
 ```
 
-On a RHEL or Fedora (or other Linux based) host, you can open the link using the `xdg-open` command:
-```
-$ xdg-open https://modresort.apps-crc.testing/resorts
-```
-
+Paste the URL obtained from the route into your browser (**don't forget** to append the `/resorts` path to the end of the URL).
 Proceed through the self-signed certificate warning page, and you should be greeted with the Mod Resorts web app.
 
 ![mod-resrts.png](../../assets/dynatrace-appmon/mod-resrts.png)
  
 
 ## Install Dynatrace Operator
-The next step is to install the operator, which will leverage Dynatrace OneAgent in the ol-demo-app container to make app metrics available to the Dynatrace dashboard.
+The next step is to install the operator, which will leverage Dynatrace OneAgent in the ol-demo-app pod to make app metrics available to the Dynatrace dashboard.
 There is a preliminary step to create API keys and environment ID for use by the operator.
 
 Login to [Dynatrace](https://sso.dynatrace.com) with a free trial account.
@@ -159,9 +155,9 @@ Once again, record the token value for safe keeping, as it can not be obtained a
 **Make note** of the environment id for your Dynatrace instance.
 This is located in the web page URL as `https://<environment-id>.live.dynatrace.com/`.
 
-Create the `dto_subscription.yaml` file which will deploy the certified Dynatrace Operator from OperatorHub:
+Create the subscription yaml file that will deploy the certified Dynatrace Operator from OperatorHub.
+[Download](../../assets/dynatrace-appmon/dto_subscription.yaml) or paste the yaml spec below into a file named `dto_subscription.yaml`:
 ```
-$ cat > dto_subscription.yaml << EOF
 apiVersion: operators.coreos.com/v1alpha1
 kind: Subscription
 metadata:
@@ -178,7 +174,8 @@ spec:
   startingCSV: dynatrace-operator.v0.10.3
 ```
 
-Install Dynatrace Operator by creating the subscription in the `openshift-operators` namespace:
+Install Dynatrace Operator by creating the subscription on OpenShift.
+This command will create the `dto_subscription.yaml` object in the `openshift-operators` namespace:
 ```
 $ oc create -f dto_subscription.yaml
 ```
@@ -212,9 +209,9 @@ $ oc create secret generic dynakube-appmon --from-literal=apiToken=$APIKEY \
 Note: The secret name in the previous command _does_ matter, as it must match the name of the CR that gets created in the next step.
 
 Create the `dynakube` CR which will be used to trigger the operator.
-**Replace <environment-id>** below with your applicable host id noted earlier.
+[Download](../../assets/dynatrace-appmon/dynakube-appmon_cr.yaml) or paste the following yaml spec into a file named `dynakube-appmon_cr.yaml`.
+**Replace <environment-id>** in the yaml file with _your_ previously noted Dynatrace environment ID.
 ```
-$ cat > dynakube_cr.yaml << EOF
 apiVersion: dynatrace.com/v1beta1
 kind: DynaKube
 metadata:
@@ -228,10 +225,10 @@ spec:
   oneAgent:
     applicationMonitoring:
       useCSIDriver: false
-EOF
 ```
 
-Trigger the Dynatrace operator by creating the CR in the (hard-coded) `openshift-operators` namespace:
+Trigger the Dynatrace operator by creating the CR on the cluster.
+This will create the `dynakube-appmon` custom resource in `openshift-operators` namespace:
 ```
 $ oc create -f dynakube_cr.yaml
 ```
@@ -247,7 +244,7 @@ $ oc delete pod --all -n ol-demo-app
 ```
 
 Check the pod's yaml output to see if OneAgent was installed in the pod.
-This command looks for the initContainer named `install-oneagent`, which gets injected by the Dynatrace webhook:
+The following command looks for the initContainer named `install-oneagent`, which gets injected by the Dynatrace webhook:
 ```
 $ oc get pods -n ol-demo-app | grep install-oneagent
       name: install-oneagent
