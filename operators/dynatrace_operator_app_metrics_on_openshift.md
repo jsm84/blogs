@@ -121,7 +121,7 @@ $ xdg-open https://modresort.apps-crc.testing/resorts
 
 Proceed through the self-signed certificate warning page, and you should be greeted with the Mod Resorts web app.
 
-
+![mod-resrts.png](../../assets/dynatrace-appmon/mod-resrts.png)
  
 
 ## Install Dynatrace Operator
@@ -137,12 +137,13 @@ Fill out the web form as follows:
 * Select **Kubernetes: Dynatrace Operator** from the pull down menu.
 * Click **Generate token** at the bottom of the page.
 
-
-
+![dt-token-form.png](../../assets/dynatrace-appmon/dt-token-form.png)
 
 The API access token will be displayed. 
 **Copy and paste** the token into a password manager or secure text document.
 The token is only available upon generation, and can not be accessed at a later time.
+
+![dt-generated-token.png](../../assets/dynatrace-appmon/dt-generated-token.png)
 
 Generate a second token for data ingest:
 * From the **Access Tokens** page, click **Generate New Token**
@@ -151,16 +152,12 @@ Generate a second token for data ingest:
 * Check the box to select the `Ingest metrics` scope item
 * Click **Generate Token**
 
+![create-ingest-tkn.png](../../assets/dynatrace-appmon/create-ingest-tkn.png)
 
-
-
-Once again, **copy and paste** the token value for safe keeping, as it can not be obtained again.
-
-
-
+Once again, record the token value for safe keeping, as it can not be obtained again.
 
 **Make note** of the environment id for your Dynatrace instance.
-This is located in the web page URL as https://<environment-id>.live.dynatrace.com/.
+This is located in the web page URL as `https://<environment-id>.live.dynatrace.com/`.
 
 Create the `dto_subscription.yaml` file which will deploy the certified Dynatrace Operator from OperatorHub:
 ```
@@ -263,19 +260,16 @@ With the demo pod being monitored and having OneAgent injected, metrics will be 
 Switching context back to the Dynatrace web session, click to expand **Infrastructure** in the left pane, and then select **Technologies and Processes**.
 The following info should be visible:
 
-
-
+![metrics-pg1.png](../../assets/dynatrace-appmon/metrics-pg1.png)
 
 Click the blue text link under the **Group** list to see more info about the app stack:
 
-
-
+![metrics-pg2.png](../../assets/dynatrace-appmon/metrics-pg2.png)
 
 Review the visible information, then scroll down and click the blue text link in the **Process** list.
 This is where the more interesting app metrics can be seen:
 
-
-
+![metrics-pg3.png](../../assets/dynatrace-appmon/metrics-pg3.png)
 
 ## Wrap Up
 
