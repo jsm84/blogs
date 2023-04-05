@@ -33,7 +33,7 @@ $ mkdir appmon-files && cd appmon-files
 ```
 
 Create the subscription yaml file which will be used to install the certified OpenLiberty Operator from OperatorHub.
-[Download](../../assets/dynatrace-appmon/olo_subscription.yaml) or paste the yaml spec below into a new file named `olo_subscription.yaml`.
+[Download](https://github.com/jsm84/blogs/raw/assets/dynatrace-appmon/olo_subscription.yaml) or paste the yaml spec below into a new file named `olo_subscription.yaml`.
 ```
 apiVersion: operators.coreos.com/v1alpha1
 kind: Subscription
@@ -67,7 +67,7 @@ $ oc label namespace ol-demo-app monitor=appMonitoring
 ``` 
 
 The next step is to create an `openlibertyapplication` Custom Resource (CR) yaml file.
-[Download](../../assets/dynatrace-appmon/app-mod-withsslroute_cr.yaml) or paste the yaml spec below into a file named `app-mod-withsslroute_cr.yaml`:
+[Download](https://github.com/jsm84/blogs/raw/assets/dynatrace-appmon/app-mod-withsslroute_cr.yaml) or paste the yaml spec below into a file named `app-mod-withsslroute_cr.yaml`:
 ```
 apiVersion: apps.openliberty.io/v1beta2
 kind: OpenLibertyApplication
@@ -117,7 +117,7 @@ appmon   modresort.apps-crc.testing   /resorts   appmon     9443-tcp   reencrypt
 Paste the URL obtained from the route into your browser (**don't forget** to append the `/resorts` path to the end of the URL).
 Proceed through the self-signed certificate warning page, and you should be greeted with the Mod Resorts web app.
 
-![mod-resrts.png](../../assets/dynatrace-appmon/mod-resrts.png)
+![mod-resrts.png](https://github.com/jsm84/blogs/blob/assets/dynatrace-appmon/mod-resrts.png)
  
 
 ## Install Dynatrace Operator
@@ -133,13 +133,13 @@ Fill out the web form as follows:
 * Select **Kubernetes: Dynatrace Operator** from the pull down menu.
 * Click **Generate token** at the bottom of the page.
 
-![dt-token-form.png](../../assets/dynatrace-appmon/dt-token-form.png)
+![dt-token-form.png](https://github.com/jsm84/blogs/blob/assets/dynatrace-appmon/dt-token-form.png)
 
 The API access token will be displayed. 
 **Copy and paste** the token into a password manager or secure text document.
 The token is only available upon generation, and can not be accessed at a later time.
 
-![dt-generated-token.png](../../assets/dynatrace-appmon/dt-generated-token.png)
+![dt-generated-token.png](https://github.com/jsm84/blogs/blob/assets/dynatrace-appmon/dt-generated-token.png)
 
 Generate a second token for data ingest:
 * From the **Access Tokens** page, click **Generate New Token**
@@ -148,7 +148,7 @@ Generate a second token for data ingest:
 * Check the box to select the `Ingest metrics` scope item
 * Click **Generate Token**
 
-![create-ingest-tkn.png](../../assets/dynatrace-appmon/create-ingest-tkn.png)
+![create-ingest-tkn.png](https://github.com/jsm84/blogs/blob/assets/dynatrace-appmon/create-ingest-tkn.png)
 
 Once again, record the token value for safe keeping, as it can not be obtained again.
 
@@ -156,7 +156,7 @@ Once again, record the token value for safe keeping, as it can not be obtained a
 This is located in the web page URL as `https://<environment-id>.live.dynatrace.com/`.
 
 Create the subscription yaml file that will deploy the certified Dynatrace Operator from OperatorHub.
-[Download](../../assets/dynatrace-appmon/dto_subscription.yaml) or paste the yaml spec below into a file named `dto_subscription.yaml`:
+[Download](https://github.com/jsm84/blogs/raw/assets/dynatrace-appmon/dto_subscription.yaml) or paste the yaml spec below into a file named `dto_subscription.yaml`:
 ```
 apiVersion: operators.coreos.com/v1alpha1
 kind: Subscription
@@ -209,7 +209,7 @@ $ oc create secret generic dynakube-appmon --from-literal=apiToken=$APIKEY \
 Note: The secret name in the previous command _does_ matter, as it must match the name of the CR that gets created in the next step.
 
 Create the `dynakube` CR which will be used to trigger the operator.
-[Download](../../assets/dynatrace-appmon/dynakube-appmon_cr.yaml) or paste the following yaml spec into a file named `dynakube-appmon_cr.yaml`.
+[Download](https://github.com/jsm84/blogs/raw/assets/dynatrace-appmon/dynakube-appmon_cr.yaml) or paste the following yaml spec into a file named `dynakube-appmon_cr.yaml`.
 **Replace <environment-id>** in the yaml file with _your_ previously noted Dynatrace environment ID.
 ```
 apiVersion: dynatrace.com/v1beta1
@@ -257,16 +257,16 @@ With the demo pod being monitored and having OneAgent injected, metrics will be 
 Switching context back to the Dynatrace web session, click to expand **Infrastructure** in the left pane, and then select **Technologies and Processes**.
 The following info should be visible:
 
-![metrics-pg1.png](../../assets/dynatrace-appmon/metrics-pg1.png)
+![metrics-pg1.png](https://github.com/jsm84/blogs/blob/assets/dynatrace-appmon/metrics-pg1.png)
 
 Click the blue text link under the **Group** list to see more info about the app stack:
 
-![metrics-pg2.png](../../assets/dynatrace-appmon/metrics-pg2.png)
+![metrics-pg2.png](https://github.com/jsm84/blogs/blob/assets/dynatrace-appmon/metrics-pg2.png)
 
 Review the visible information, then scroll down and click the blue text link in the **Process** list.
 This is where the more interesting app metrics can be seen:
 
-![metrics-pg3.png](../../assets/dynatrace-appmon/metrics-pg3.png)
+![metrics-pg3.png](https://github.com/jsm84/blogs/blob/assets/dynatrace-appmon/metrics-pg3.png)
 
 ## Wrap Up
 
