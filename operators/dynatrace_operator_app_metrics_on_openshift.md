@@ -1,8 +1,10 @@
-# Partner Showcase: OpenShift App Metrics with Dynatrace Operator
+# Partner Showcase: OpenShift App Observability with Dynatrace Operator
 For a few years now, Red Hat has partnered with an ever-growing number of Independent Software Vendors (ISVs) to bring an expanded catalog of both operator and helm-driven product offerings to OpenShift.
-As part of a new blog series highlighting these partner products, this post covers using Dynatrace Operator for monitoring app metrics on OpenShift.
+As part of a new blog series highlighting these partner products, this post covers using Dynatrace Operator for App Observability on OpenShift.
 
-A simple java websphere app will be used to demonstrate how Dynatrace Operator can be used to monitor app metrics in a cloud-native fashion, _without_ requiring source-based plugins.
+A simple java websphere app will be used to demonstrate how Dynatrace Operator can be used to monitor apps in a cloud-native fashion and gain insights from App metrics, _without_ requiring modifying any source code or adding any source-based plugins.
+Dynatrace Operator ensures a convenient and frictionless deployment at scale by utilizing cloud-native concepts like Webhooks and init-containers to instrument applications like the java websphere App.
+While this blog purely focuses on App metrics, Dynatrace would provide a lot of additional value like end-to-end distributed tracing, real-time problem detection based on DAVIS AI, code-level visibility to troubleshoot issues and many more.
 
 ## Requirements
 The following items are required if you'd like to duplicate this process in your own environment:
@@ -17,7 +19,7 @@ Note: This guide focused on using the command-line, but the admin console can be
 This could also be used as a workaround in a non-supported client environment.
 
 ## Install Demo App
-To start, lets begin with installing the demo app that will be monitored by OneAgent.
+To start, let's begin with installing the demo app that will be monitored by OneAgent.
 App Mod[ernization] Resorts (not to be confused with App Mon[itoring]) is a simple java app designed to run on an IBM Websphere application server.
 The OpenLiberty Operator will assist here by creating and managing the OpenShift deployment, services and routes required to host the app.
 
@@ -61,10 +63,10 @@ $ oc new-project ol-demo-app
 ```
 
 Label the namespace with the key/value label `monitor: appMonitoring`.
-Dynatrace operator will be configured later to monitor namespaces with this particular label:
+Dynatrace operator will be configured later to only monitor namespaces with this particular label:
 ```
 $ oc label namespace ol-demo-app monitor=appMonitoring
-``` 
+```
 
 The next step is to create an `openlibertyapplication` Custom Resource (CR) yaml file.
 [Download](https://github.com/jsm84/blogs/raw/assets/dynatrace-appmon/app-mod-withsslroute_cr.yaml) or paste the yaml spec below into a file named `app-mod-withsslroute_cr.yaml`:
@@ -113,7 +115,7 @@ Paste the URL obtained from the route into your browser (**don't forget** to app
 Proceed through the self-signed certificate warning page, and you should be greeted with the Mod Resorts web app.
 
 ![mod-resrts.png](https://github.com/jsm84/blogs/blob/assets/dynatrace-appmon/mod-resrts.png)
- 
+
 ### Demo App Resources:
 * The container image is accessible from `quay.io/jmanning/ol-demo-app:latest`
 * The Dockerfile, `.war` file, and `cr.yaml` files are found at https://github.com/jsm84/openliberty-operator-ocpz under `ol-app-install/`.
@@ -121,36 +123,23 @@ Proceed through the self-signed certificate warning page, and you should be gree
 
 
 ## Install Dynatrace Operator
-The next step is to install the operator, which will leverage Dynatrace OneAgent in the ol-demo-app pod to make app metrics available to the Dynatrace dashboard.
-There is a preliminary step to create API keys and environment ID for use by the operator.
+The next step is to install the operator, which will leverage Dynatrace OneAgent in the ol-demo-app pod to make app metrics, traces and metadata available to the Dynatrace platform.
 
 Login to [Dynatrace](https://sso.dynatrace.com) with a free trial account.
 
-Once you've accessed your live environment, select **Access Tokens** from the left pane, and then select **Generate New Token**.
+Once you've accessed your live environment, select **Kubernetes** from the left pane, and then select **Connect automatically via Dynatrace Operator** in the top bar.
 
 Fill out the web form as follows:
-* Name the token. `openliberty-demo` is used in this example.
-* Select **Kubernetes: Dynatrace Operator** from the pull down menu.
-* Click **Generate token** at the bottom of the page.
+* Name the cluster / Dynakube (Custom Resource). `dynakube-appmon` is used in this example.
+* Click **Create token** at the bottom of the page to create a Dynatrace Operator token.
 
-![dt-token-form.png](https://github.com/jsm84/blogs/blob/assets/dynatrace-appmon/dt-token-form.png)
+![dt-token-form.png](https://github.com/jsm84/blogs/blob/assets/dynatrace-appmon/dynatrace-generate-token.png)
 
-The API access token will be displayed. 
+The Operator access token will be displayed in a masked manner.
 **Copy and paste** the token into a password manager or secure text document.
 The token is only available upon generation, and can not be accessed at a later time.
 
-![dt-generated-token.png](https://github.com/jsm84/blogs/blob/assets/dynatrace-appmon/dt-generated-token.png)
-
-Generate a second token for data ingest:
-* From the **Access Tokens** page, click **Generate New Token**
-* Name the token `Ingest` or similar
-* In the **Search scopes...** field, type _metrics.ingest_.
-* Check the box to select the `Ingest metrics` scope item
-* Click **Generate Token**
-
-![create-ingest-tkn.png](https://github.com/jsm84/blogs/blob/assets/dynatrace-appmon/create-ingest-tkn.png)
-
-Once again, record the token value for safe keeping, as it can not be obtained again.
+While we could follow the instructions in the Dynatrace UI to deploy the Dynatrace Operator on OpenShift, we will take an alternative approach in this sample and use OperatorHub in order to benefit from automatic Operator updates.
 
 **Make note** of the environment id for your Dynatrace instance.
 This is located in the web page URL as `https://<environment-id>.live.dynatrace.com/`.
@@ -171,7 +160,6 @@ spec:
   name: dynatrace-operator
   source: certified-operators
   sourceNamespace: openshift-marketplace
-  startingCSV: dynatrace-operator.v0.10.3
 ```
 
 Install Dynatrace Operator by creating the subscription on OpenShift.
@@ -190,19 +178,12 @@ Export a new shell variable containing the API token value recorded previously:
 $ export APIKEY=<apiTokenValue>
 ```
 
-Create a second shell variable containing the data-ingest token value:
-```
-$ export INGKEY=<ingestTokenValue>
-```
-
 Create a secret named `dynakube-appmon` in the `openshift-operators` namespace.
 This will contain the token value `$APIKEY` in secret fields named `apiToken` and `paasToken`.
-The `dataIngestToken` field will be populated by the value contained in `$INGKEY`. 
 
 ```
 $ oc create secret generic dynakube-appmon --from-literal=apiToken=$APIKEY \
   --from-literal=paasToken=$APIKEY \
-  --from-literal=dataIngestToken=$INGKEY \
   -n openshift-operators
 ```
 
@@ -225,6 +206,10 @@ spec:
   oneAgent:
     applicationMonitoring:
       useCSIDriver: false
+  activeGate:
+    capabilities:
+    - routing
+    - kubernetes-monitoring
 ```
 
 Trigger the Dynatrace operator by creating the CR on the cluster.
@@ -246,35 +231,73 @@ $ oc delete pod --all -n ol-demo-app
 Check the pod's yaml output to see if OneAgent was installed in the pod.
 The following command looks for the initContainer named `install-oneagent`, which gets injected by the Dynatrace webhook:
 ```
-$ oc get pods -n ol-demo-app | grep install-oneagent
+$ oc describe pods -n ol-demo-app | grep install-oneagent
       name: install-oneagent
       name: install-oneagent
 ```
 
-## Review App Metrics
+## App Observability Walkthrough
 
-With the demo pod being monitored and having OneAgent injected, metrics will be sent to the Dynatrace API.
-Switching context back to the Dynatrace web session, click to expand **Infrastructure** in the left pane, and then select **Technologies and Processes**.
-The following info should be visible:
+### OpenShift (Kubernetes) Observability
 
-![metrics-pg1.png](https://github.com/jsm84/blogs/blob/assets/dynatrace-appmon/metrics-pg1.png)
+With the demo App being monitored and having OneAgent injected, metrics will be sent to the Dynatrace API.
+Switching context back to the Dynatrace web session, click to expand **Application & Microservices** in the left pane, and then select **Kubernetes workloads**.
+There you will find an overview of all your deployed workloads. By entering "appmod" in the filter bar on top of the page,
+all other apps will be filtered out and info will be visible that gives you an instant overview about key information like the Status,
+or the number of Pods the app runs on.
 
-Click the blue text link under the **Group** list to see more info about the app stack:
+![dynatrace-kubernetes-overview.png](https://github.com/jsm84/blogs/blob/assets/dynatrace-appmon/dynatrace-kubernetes-overview.png)
 
-![metrics-pg2.png](https://github.com/jsm84/blogs/blob/assets/dynatrace-appmon/metrics-pg2.png)
+Click the blue text link under **Name** to all details about the workload app stack.
+Here you get an overview about the resource utilisation, Pods and also the health from a service perspective.
 
-Review the visible information, then scroll down and click the blue text link in the **Process** list.
-This is where the more interesting app metrics can be seen:
+In the Service section you can see how the response time, failure rate and throughput of our sample app evolves over time.
+Keep in mind that you need to generate some requests to your app by opening the page again in your browser,
+_after_ Dynatrace was deployed, to generate some datapoints to display here.
 
-![metrics-pg3.png](https://github.com/jsm84/blogs/blob/assets/dynatrace-appmon/metrics-pg3.png)
+![dynatrace-appmod-observation.png](https://github.com/jsm84/blogs/blob/assets/dynatrace-appmon/dynatrace-appmod-observation.png)
+
+Click on the blue link below Pods to see all the details for a pod, then find the "**Process**" section and click on the blue **appmod** entry there.
+
+![dynatrace-pod-details.png](https://github.com/jsm84/blogs/blob/assets/dynatrace-appmon/dynatrace-pod-details.png)
+
+### Java Observability
+
+Next, scroll down and click the blue text link in the **Process** list that guids you to all the detailed app metrics for OpenLiberty.
+Here you can see that Dynatrace also automatically detected the underlying technology used by OpenLiberty.
+
+By clicking on **JVM metrics** right below the info graphic, you'll see detailed metrics showing how Garbage collection suspension,
+heap memory and threads evolve over time.
+
+By opening **Further details** you can find more detailed insights to Java managed memory.
+
+![dynatrace-openliberty-jvm-metrics.png](https://github.com/jsm84/blogs/blob/assets/dynatrace-appmon/dynatrace-openliberty-jvm-metrics.png)
+
+By clicking on **Analyze suspension** you can even dive into Dynatrace memory profiling capabilities, that analyze which objects contribute most
+to memory allocation or to understand which objects often survive garbage collection (GC) cycles and therefore contribute the most to GC suspension.
+
+![dynatrace-memory-profiling.png](https://github.com/jsm84/blogs/blob/assets/dynatrace-appmon/dynatrace-memory-profiling.png)
+
+### Web App Monitoring
+
+Dynatrace Application Monitoring starts with the end user device, so you can see how the application performs on the client side, within the web browser.
+To investigate metrics from there, just open the **Frontend** entry in the left sid menu. There you will find an entry for **My web application** with
+key info like the Apdex rating, the number of user actions and the **Visual complete** time (meaning how long it took to render the visual part of the web
+page in the browser).
+
+From this section, you can also see how key metrics evolve over time - and if your demo app is available from the internet, you can even set up
+a synthetic availability check for it.
+
+![dynatrace-client-side.png](https://github.com/jsm84/blogs/blob/assets/dynatrace-appmon/dynatrace-memory-profiling.png)
 
 ## Wrap Up
 
-You may have noticed some metrics appeared to be missing (services, host, and k8s cluster/API metrics), and that is due to the limited scope of this article.
-Dynatrace Operator supports cloud-native full stack injection for x86_64 OpenShift clusters, which encompasses host metrics as well as app metrics.
+Dynatrace Operator supports cloud-native full stack injection for x86_64 OpenShift clusters, which encompasses Host Observability as well as App Observability.
 
 OpenShift cluster metrics are provided with a separate add-on called ActiveGate, which runs exclusively on x86_64 as a kube client in order to gather metrics.
 ActiveGate can also be used as an API gateway for the communication of all metrics back to the Dynatrace API.
+
+All shown metrics can also be directly found and plotted via the Dynatrace Data explorer, put on any dashboard, accessed via API, or used in anomaly detection settings.
 
 That being said, Dynatrace Operator is one of the most popular operators available in OperatorHub, and for good reason.
 Stay tuned for more partner highlights from the Red Hat OpenShift Ecosystem.
