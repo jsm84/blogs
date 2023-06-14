@@ -114,7 +114,7 @@ appmon   modresort.apps-crc.testing   /resorts   appmon     9443-tcp   reencrypt
 Paste the URL obtained from the route into your browser (**don't forget** to append the `/resorts` path to the end of the URL).
 Proceed through the self-signed certificate warning page, and you should be greeted with the Mod Resorts web app.
 
-![mod-resrts.png](https://github.com/jsm84/blogs/blob/assets/dynatrace-appmon/mod-resrts.png)
+![mod-resorts.png](https://github.com/jsm84/blogs/blob/assets/dynatrace-appmon/mod-resorts.png)
 
 ### Demo App Resources:
 * The container image is accessible from `quay.io/jmanning/ol-demo-app:latest`
@@ -243,13 +243,13 @@ $ oc describe pods -n ol-demo-app | grep install-oneagent
 With the demo App being monitored and having OneAgent injected, metrics will be sent to the Dynatrace API.
 Switching context back to the Dynatrace web session, click to expand **Application & Microservices** in the left pane, and then select **Kubernetes workloads**.
 There you will find an overview of all your deployed workloads. By entering "appmod" in the filter bar on top of the page,
-all other apps will be filtered out and info will be visible that gives you an instant overview about key information like the Status,
+all other apps will be filtered out and info will be visible that gives you an instant overview of key information like the Status,
 or the number of Pods the app runs on.
 
 ![dynatrace-kubernetes-overview.png](https://github.com/jsm84/blogs/blob/assets/dynatrace-appmon/dynatrace-kubernetes-overview.png)
 
-Click the blue text link under **Name** to all details about the workload app stack.
-Here you get an overview about the resource utilisation, Pods and also the health from a service perspective.
+Click the blue text link under **Name** to view all details about the workload app stack.
+Here you get an overview of the resource utilization, Pods and also the health from a service perspective.
 
 In the Service section you can see how the response time, failure rate and throughput of our sample app evolves over time.
 Keep in mind that you need to generate some requests to your app by opening the page again in your browser,
@@ -263,7 +263,7 @@ Click on the blue link below Pods to see all the details for a pod, then find th
 
 ### Java Observability
 
-Next, scroll down and click the blue text link in the **Process** list that guids you to all the detailed app metrics for OpenLiberty.
+Next, scroll down and click the blue text link in the **Process** list that guides you through all the detailed app metrics for OpenLiberty.
 Here you can see that Dynatrace also automatically detected the underlying technology used by OpenLiberty.
 
 By clicking on **JVM metrics** right below the info graphic, you'll see detailed metrics showing how Garbage collection suspension,
@@ -281,7 +281,7 @@ to memory allocation or to understand which objects often survive garbage collec
 ### Web App Monitoring
 
 Dynatrace Application Monitoring starts with the end user device, so you can see how the application performs on the client side, within the web browser.
-To investigate metrics from there, just open the **Frontend** entry in the left sid menu. There you will find an entry for **My web application** with
+To investigate metrics from there, just open the **Frontend** entry in the left side menu. There you will find an entry for **My web application** with
 key info like the Apdex rating, the number of user actions and the **Visual complete** time (meaning how long it took to render the visual part of the web
 page in the browser).
 
