@@ -193,7 +193,7 @@ $ oc create secret generic dynakube-appmon --from-literal=apiToken=$APIKEY \
 
 Note: The secret name in the previous command _does_ matter, as it must match the name of the CR that gets created in the next step.
 
-Create the `dynakube` CR which will be used to trigger the operator.
+Create the `dynakube-appmod` CR which will be used to trigger the operator.
 [Download](https://github.com/jsm84/blogs/raw/assets/dynatrace-appmon/dynakube-appmon_cr.yaml) or paste the following yaml spec into a file named `dynakube-appmon_cr.yaml`.
 **Replace** `<environment-id>` in the yaml file with _your_ previously noted Dynatrace environment ID.
 ```
