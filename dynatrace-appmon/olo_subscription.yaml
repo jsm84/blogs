@@ -9,4 +9,3 @@ spec:
   name: open-liberty-certified
   source: certified-operators
   sourceNamespace: openshift-marketplace
-  startingCSV: open-liberty-operator.v0.8.1
