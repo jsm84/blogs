@@ -11,3 +11,7 @@ spec:
   oneAgent:
     applicationMonitoring:
       useCSIDriver: false
+  activeGate:
+    capabilities:
+    - routing
+    - kubernetes-monitoring
