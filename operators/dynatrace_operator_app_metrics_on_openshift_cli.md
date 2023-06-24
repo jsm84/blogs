@@ -51,13 +51,13 @@ spec:
 ```
 
 Install OpenLiberty Operator by creating the `olo_subscription.yaml` in OpenShift.
-This command will create the subscription in the `openshift-operators` namespace on the cluster:
+This command will create the subscription in the `openshift-operators` namespace (redundantly set in the subscription.yaml):
 ```
-$ oc create -f olo_subscription.yaml
+$ oc apply -f olo_subscription.yaml -n openshift-operators
 ```
 
 Next, create a new project/namespace to house the demo app.
-This will also switch your current (working) namespace to `ol-demo-app`:
+This will also switch the current namespace to `ol-demo-app` (a failsafe in case `-n <namespace>` is omitted):
 ```
 $ oc new-project ol-demo-app
 ```
@@ -92,14 +92,14 @@ spec:
 
 Edit the above yaml file to adjust the URL set in `spec.route.host` to your cluster domain (the hard-coded URL will work for OpenShift Local).
 
-Create the openlibertyapplication CR in the `ol-demo-app` namespace (the current context namespace) on the cluster:
+Create the openlibertyapplication CR in the `ol-demo-app` namespace on the cluster:
 ```
-$ oc create -f app-mod-withsslroute_cr.yaml
+$ oc apply -f app-mod-withsslroute_cr.yaml -n ol-demo-app
 ```
 
 The application pod should now be running and showing a ready status:
 ```
-$ oc get pods
+$ oc get pods -n ol-demo-app
 NAME                      READY   STATUS    RESTARTS   AGE
 appmon-64548758f4-hhlpb   1/1     Running   0          6s
 ```
@@ -144,6 +144,11 @@ While we could follow the instructions in the Dynatrace UI to deploy the Dynatra
 **Make note** of the environment id for your Dynatrace instance.
 This is located in the web page URL as `https://<environment-id>.live.dynatrace.com/`.
 
+Switch to the `openshift-operators` namespace, which will hold all resources related to the Dynatrace Operator. This helps to ensure that things end up in the desired place:
+```
+$ oc project openshift-operators
+```
+
 Create the subscription yaml file that will deploy the certified Dynatrace Operator from OperatorHub.
 [Download](https://github.com/jsm84/blogs/raw/assets/dynatrace-appmon/dto_subscription.yaml) or paste the yaml spec below into a file named `dto_subscription.yaml`:
 ```
@@ -163,9 +168,9 @@ spec:
 ```
 
 Install Dynatrace Operator by creating the subscription on OpenShift.
-This command will create the `dto_subscription.yaml` object in the `openshift-operators` namespace:
+This command will create the `dto_subscription.yaml` object in the `openshift-operators` namespace (also set in the subscription):
 ```
-$ oc create -f dto_subscription.yaml
+$ oc apply -f dto_subscription.yaml -n openshift-operators
 ```
 
 Confirm that the Dynatrace-operator pods are running:
@@ -180,7 +185,6 @@ $ export APIKEY=<apiTokenValue>
 
 Create a secret named `dynakube-appmon` in the `openshift-operators` namespace.
 This will contain the token value `$APIKEY` in secret fields named `apiToken` and `paasToken`.
-
 ```
 $ oc create secret generic dynakube-appmon --from-literal=apiToken=$APIKEY \
   --from-literal=paasToken=$APIKEY \
@@ -197,7 +201,6 @@ apiVersion: dynatrace.com/v1beta1
 kind: DynaKube
 metadata:
   name: dynakube-appmon
-  namespace: openshift-operators
 spec:
   apiUrl: https://<environment-id>.live.dynatrace.com/api
   namespaceSelector:
@@ -215,7 +218,7 @@ spec:
 Trigger the Dynatrace operator by creating the CR on the cluster.
 This will create the `dynakube-appmon` custom resource in `openshift-operators` namespace:
 ```
-$ oc create -f dynakube_cr.yaml
+$ oc apply -f dynakube_cr.yaml -n openshift-operators
 ```
 
 Check the `dynakube-appmon` custom resource for healthiness (to ensure there are no errors):
@@ -223,7 +226,8 @@ Check the `dynakube-appmon` custom resource for healthiness (to ensure there are
 $ oc get dynakube -n openshift-operators
 ```
 
-Finally, restart the `ol-demo-app` pod so that the Dynatrace webhook can inject the initContainer config for OneAgent (there should only be one pod in the namespace):
+Finally, restart the `ol-demo-app` pod so that the Dynatrace webhook can inject the initContainer config for OneAgent.
+As a note, `--all` is used below despite there being only one pod in the namespace (as the pod name can't be predetermined):
 ```
 $ oc delete pod --all -n ol-demo-app
 ```
