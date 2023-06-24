@@ -133,7 +133,7 @@ Fill out the web form as follows:
 * Name the cluster / Dynakube (Custom Resource). `dynakube-appmon` is used in this example.
 * Click **Create token** at the bottom of the page to create a Dynatrace Operator token.
 
-![dt-token-form.png](https://github.com/jsm84/blogs/blob/assets/dynatrace-appmon/dynatrace-generate-token.png)
+![dynatrace-generate-token.png](https://github.com/jsm84/blogs/blob/assets/dynatrace-appmon/dynatrace-generate-token.png)
 
 The Operator access token will be displayed in a masked manner.
 **Copy and paste** the token into a password manager or secure text document.
@@ -292,7 +292,7 @@ page in the browser).
 From this section, you can also see how key metrics evolve over time - and if your demo app is available from the internet, you can even set up
 a synthetic availability check for it.
 
-![dynatrace-client-side.png](https://github.com/jsm84/blogs/blob/assets/dynatrace-appmon/dynatrace-memory-profiling.png)
+![dynatrace-client-side.png](https://github.com/jsm84/blogs/blob/assets/dynatrace-appmon/dynatrace-client-side.png)
 
 ## Wrap Up
 
