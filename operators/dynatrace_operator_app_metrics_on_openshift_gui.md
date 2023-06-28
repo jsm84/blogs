@@ -31,19 +31,17 @@ Login to the OpenShift admin console as `kubeadmin` or any user with cluster-adm
 
 Create a namespace to install the OpenLiberty application into.
 In the left-side menu, expand **Administration** and then select **Namespaces**.
+
 Click the blue **Create Namespace** button in the upper right corner,
 then type `ol-demo-app` when prompted for the Name.
+
+In the Labels field, type `monitor=appMonitoring`.
 Then click **Create**.
 
-![create-openliberty-namespace.png](https://github.com/jsm84/blogs/blob/assets/dynatrace-appmon/create-openliberty-namespace.png)
-
-From the namespace details page, click to **Edit** the Labels.
-Click anywhere in the text window and then type `monitor=appMonitoring`.
-Click **Save**.
-
-![label-openliberty-namespace.png](https://github.com/jsm84/blogs/blob/assets/dynatrace-appmon/label-openliberty-namespace.png)
+![openliberty-create-namespace.png](https://github.com/jsm84/blogs/blob/assets/dynatrace-appmon/openliberty-create-namespace.png)
 
 Click to expand the **Operators** menu on the left side, then select **OperatorHub**.
+
 In the search field, type `openliberty` to filter the results.
 
 ![operatorhub-openliberty-filter.png](https://github.com/jsm84/blogs/blob/assets/dynatrace-appmon/operatorhub-openliberty-filter.png)
@@ -54,6 +52,7 @@ and you should see an installation overview.
 ![openliberty-install-prompt.png](https://github.com/jsm84/blogs/blob/assets/dynatrace-appmon/openliberty-install-prompt.png)
 
 Click **Install** and be sure that both **All namespaces on the cluster (default)** and **beta2** are selected.
+
 Then click **Install** once again.
 
 ![openliberty-install-options.png](https://github.com/jsm84/blogs/blob/assets/dynatrace-appmon/openliberty-install-options.png)
@@ -63,8 +62,9 @@ select **Installed Operators** from the left menu (skipping View Operator actual
 
 ![openliberty-install-status.png](https://github.com/jsm84/blogs/blob/assets/dynatrace-appmon/openliberty-install-status.png)
 
-From the Installed Operators list, select the pull down above for **Project:**
-and select the **ol-demo-app** namespace created previously.
+From the Installed Operators list, expand the pull down menu (above) for **Project:**
+and choose the **ol-demo-app** namespace created previously.
+
 Then click **Open Liberty** to view the operator.
 
 ![openliberty-install-list.png](https://github.com/jsm84/blogs/blog/assets/dynatrace-appmon/openliberty-install-status.png)
@@ -78,7 +78,9 @@ Replace the existing contents with that of the provided
 [Custom Resource (CR) yaml file](https://github.com/jsm84/blogs/raw/assets/dynatrace-appmon/app-mod-withsslroute_cr.yaml).
 
 Edit the yaml contents to adjust the URL in `spec.route.host` to match your cluster's domain
-(the default URL _will_ work for OpenShift Local). Then click **Create**.
+(the default URL _will_ work for OpenShift Local).
+
+Once finished, click **Create**.
 
 ![openliberty-application-yaml.png](https://github.com/jsm84/blogs/blob/assets/dynatrace-appmon/openlibertyapplication-yaml.png)
 
@@ -121,6 +123,7 @@ Please note that you can switch back to the latest version at any time by clicki
 ![dynatrace-latest-version](https://github.com/jsm84/blogs/blob/assets/dynatrace-appmon/dynatrace-latest-version.png)
 
 Once you've accessed your live environment, expand the **Infrastructure** menu and select **Kubernetes** from the left pane.
+
 Then, select **Connect automatically via Dynatrace Operator** in the top bar.
 
 Fill out the web form as follows:
@@ -130,13 +133,14 @@ Fill out the web form as follows:
 ![dynatrace-generate-token.png](https://github.com/jsm84/blogs/blob/assets/dynatrace-appmon/dynatrace-generate-token.png)
 
 The Operator access token will be displayed in a masked manner.
-**Copy and paste** the token into a password manager or secure text document.
-The token is only available upon generation, and can not be accessed at a later time.
+_Copy and paste_ the token into a password manager or secure text document.
+
+The token is _only_ available upon generation, and can not be accessed at a later time.
 
 While we could follow the instructions in the Dynatrace UI to deploy the Dynatrace Operator on OpenShift,
 we will take an alternative approach in this example and use OperatorHub to benefit from automatic Operator updates.
 
-**Make note** of the environment id for your Dynatrace instance.
+_Make note_ of the environment id for your Dynatrace instance.
 This is located in the web page URL as `https://<environment-id>.live.dynatrace.com/`.
 
 Switch back to the the OpenShift admin console, expand the **Operators** menu (if it's not already) and select **OperatorHub**.
@@ -158,6 +162,7 @@ At the install status page, wait a few moments for the install to complete, and 
 ![dynatrace-install-status.png](https://github.com/jsm84/blogs/blob/assets/dynatrace-appmon/dynatrace-install-status.png)
 
 The next step is to create the secret, which will contain the API token created earlier.
+
 From the Operator details page (which should now be in the `dynatrace` project by checking above),
 expand **Workloads** in the left menu, and then click **Secret**.
 
@@ -168,8 +173,11 @@ From the secrets page, click **Create** which will expand a pull down menu. Then
 ![dynatrace-secret-create.png](https://github.com/jsm84/blogs/blob/assets/dynatrace-appmon/dynatrace-secret-create.png)
 
 Fill out the web form by typing in the **Name** `dynakube-appmon`.
+
 Enter the **Key** name `apiToken` and paste the token value (recorded previously) into the **Value** field.
+
 Click to **Add key/value** and enter the **Key** name `paasToken`.
+
 Paste the same token value into the corresponding **Value** field.
 
 ![dynatrace-secret-form.png](https://github.com/jsm84/blogs/blob/assets/dynatrace-appmon/dynatrace-secret-form.png)
@@ -178,7 +186,9 @@ Note: The secret name and the key names from the previous step are important,
 and must match the name of the CR that gets created in the next step.
 
 Go back to the Operator details page again. Expand **Operators** in the left menu,
-select **Installed Operators** and then click **Dynatrace Operator** in the center frame.
+select **Installed Operators**.
+
+Click on **Dynatrace Operator** in the center frame.
 
 ![dynatrace-secrets-to-operator-details.png](https://github.com/jsm84/blogs/blob/assets/dynatrace-appmon/dynatrace-secrets-to-operator-details.png)
 
@@ -189,11 +199,12 @@ This time, select **Create Instance** in the **DK Dynatrace Dynakube** tile.
 Select **YAML view**, then replace the default yaml contents with that of the provided
 [Dynakube CR yaml file](https://github.com/jsm84/blogs/raw/assets/dynatrace-appmon/dynakube-appmon_cr.yaml).
 
-**Replace** `ENVIRONMENTID` in the yaml file with _your_ previously noted Dynatrace environment ID (highlighted in the screenshot below).
+_Replace_ `ENVIRONMENTID` in the yaml file with _your_ previously noted Dynatrace environment ID (highlighted in the screenshot below).
 
 ![dynatrace-dynakube-cr.png](https://github.com/jsm84/blogs/blob/assets/dynatrace-appmon/dynatrace-dynakube-cr.png)
 
 Click **Create** to instantiate the CR which will trigger the operator.
+
 The `dynakube-appmon` will show up in a list of `dynakube` resources, along with the current Status.
 Within a few minutes, you should see the Status Phase change from `Deploy` to `Running`:
 
@@ -203,6 +214,7 @@ The last step is to restart the OpenLiberty pod so that the Dynatrace webhook ca
 From the Dynakubes page, click the pull down menu above to change the **Project** from `dynatrace` to `ol-demo-app`.
 
 Next, expand **Workloads** in the left menu and select **Pods**.
+
 For the `appmod` pod shown, click the dots on the far right and select **Delete**.
 
 ![openliberty-pod-destroy.png](https://github.com/jsm84/blogs/blob/assets/dynatrace-appmon/openliberty-pod-destroy.png)
@@ -221,6 +233,7 @@ The application can now be observed using Dynatrace.
 With the demo App being monitored and having OneAgent injected, metrics will be sent to the Dynatrace API.
 Switching context back to the Dynatrace web session, click to expand **Application & Microservices** in the left pane,
 and then select **Kubernetes workloads**. There you will find an overview of all your deployed workloads.
+
 By entering `appmod` in the filter bar on top of the page, all other apps will be filtered out and info will be visible
 that gives an instant overview of key info like the Status, or the number of Pods the app runs on.
 
@@ -261,7 +274,9 @@ to memory allocation or to understand which objects often survive garbage collec
 
 Dynatrace Application Monitoring starts with the end user device,
 so you can see how the application performs on the client side, within the web browser.
+
 To investigate metrics from there, just open the **Frontend** entry in the left side menu.
+
 There you will find an entry for **My web application** with key info like the Apdex rating, 
 the number of user actions, and the **Visual complete** time
 (meaning how long it took to render the visual part of the web page in the browser).
