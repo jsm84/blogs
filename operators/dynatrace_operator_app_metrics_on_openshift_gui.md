@@ -67,7 +67,7 @@ and choose the **ol-demo-app** namespace created previously.
 
 Then click **Open Liberty** to view the operator.
 
-![openliberty-install-list.png](https://github.com/jsm84/blogs/blog/assets/dynatrace-appmon/openliberty-install-status.png)
+![openliberty-install-list.png](https://github.com/jsm84/blogs/blob/assets/dynatrace-appmon/openliberty-install-list.png)
 
 From the Operator Details page, select **Create instance** under **OLA OpenLibertyApplication**.
 
@@ -82,7 +82,7 @@ Edit the yaml contents to adjust the URL in `spec.route.host` to match your clus
 
 Once finished, click **Create**.
 
-![openliberty-application-yaml.png](https://github.com/jsm84/blogs/blob/assets/dynatrace-appmon/openlibertyapplication-yaml.png)
+![openliberty-application-yaml.png](https://github.com/jsm84/blogs/blob/assets/dynatrace-appmon/openliberty-application-yaml.png)
 
 In the OpenLibertyApplications list, select **appmod** to view the app instance.
 
