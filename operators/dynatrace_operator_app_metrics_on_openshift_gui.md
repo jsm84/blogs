@@ -5,12 +5,12 @@ As part of a new blog series highlighting these partner products,
 this post covers using Dynatrace Operator for App Observability on OpenShift.
 
 A simple java WebSphere app will be used to demonstrate how Dynatrace Operator can be used to monitor apps
-in a cloud-native fashion and gain insights from App metrics,
+in a cloud-native fashion and gain insights from app metrics,
 _without_ requiring modifying any source code or adding any source-based plugins.
 
 Dynatrace Operator ensures a convenient and frictionless deployment at scale by utilizing
 cloud-native concepts like Webhooks and init-containers to instrument applications like the java WebSphere app.
-While this blog purely focuses on App metrics, Dynatrace would provide a lot of additional value like end-to-end distributed tracing,
+While this blog purely focuses on app metrics, Dynatrace would provide a lot of additional value like end-to-end distributed tracing,
 real-time problem detection based on DAVIS AI, code-level visibility to troubleshoot issues and many more.
 
 ## Requirements
@@ -97,6 +97,9 @@ Finally, to view the application web page, click the link shown under **Location
 ![openliberty-appmod-route.png](https://github.com/jsm84/blogs/blob/assets/dynatrace-appmon/openliberty-appmod-route.png)
 
 Proceed through the self-signed certificate warning page, and you should be greeted with the Mod Resorts web app.
+
+It may take a few moments for the application pod to start, so you may see the "application unavailable" page at first.
+Just keep refreshing (F5 in most browsers) until the application comes up.
 
 ![mod-resorts.png](https://github.com/jsm84/blogs/blob/assets/dynatrace-appmon/mod-resorts.png)
 
@@ -230,17 +233,17 @@ The application can now be observed using Dynatrace.
 
 ### OpenShift (Kubernetes) Observability
 
-With the demo App being monitored and having OneAgent injected, metrics will be sent to the Dynatrace API.
+With the demo app being monitored and having OneAgent injected, metrics will be sent to the Dynatrace API.
 Switching context back to the Dynatrace web session, click to expand **Application & Microservices** in the left pane,
 and then select **Kubernetes workloads**. There you will find an overview of all your deployed workloads.
 
 By entering `appmod` in the filter bar on top of the page, all other apps will be filtered out and info will be visible
-that gives an instant overview of key info like the Status, or the number of Pods the app runs on.
+that gives an instant overview of key info like the Status, or the number of pods the app runs on.
 
 ![dynatrace-kubernetes-overview.png](https://github.com/jsm84/blogs/blob/assets/dynatrace-appmon/dynatrace-kubernetes-overview.png)
 
 Click the blue text link under **Name** to view all details about the workload app stack.
-Here you get an overview of the resource utilization, Pods and also the health from a service perspective.
+Here you get an overview of the resource utilization, pods and also the health from a service perspective.
 
 In the Service section you can see how the response time, failure rate and throughput of our sample app evolves over time.
 Keep in mind that you need to generate some requests to your app by opening the page again in your browser,
