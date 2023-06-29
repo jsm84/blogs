@@ -161,13 +161,14 @@ Fill out the web form as follows:
 ![dynatrace-generate-token.png](https://github.com/jsm84/blogs/blob/assets/dynatrace-appmon/dynatrace-generate-token.png)
 
 The Operator access token will be displayed in a masked manner.
-**Copy and paste** the token into a password manager or secure text document.
-The token is only available upon generation, and can not be accessed at a later time.
+_Copy and paste_ the token into a password manager or secure text document.
+
+The token is _only_ available upon generation, and can not be accessed at a later time.
 
 While we could follow the instructions in the Dynatrace UI to deploy the Dynatrace Operator on OpenShift,
 we will take an alternative approach in this sample and use OperatorHub in order to benefit from automatic Operator updates.
 
-**Make note** of the environment id for your Dynatrace instance.
+_Make note_ of the environment id for your Dynatrace instance.
 This is located in the web page URL as `https://<environment-id>.live.dynatrace.com/`.
 
 Switch to the `openshift-operators` namespace, which will hold all resources related to the Dynatrace Operator.
@@ -221,15 +222,18 @@ $ oc create secret generic dynakube-appmon --from-literal=apiToken=$APIKEY \
 
 Note: The secret name in the previous command _does_ matter, as it must match the name of the CR that gets created in the next step.
 
-Create the `dynakube-appmod` CR which will be used to trigger the operator.
-[Download](https://github.com/jsm84/blogs/raw/assets/dynatrace-appmon/dynakube-appmon_cr.yaml)
+To create the `dynakube-appmod` CR which will be used to trigger the operator,
+[download](https://github.com/jsm84/blogs/raw/assets/dynatrace-appmon/dynakube-appmon_cr.yaml)
 or paste the following yaml spec into a file named `dynakube-appmon_cr.yaml`.
-**Replace** `ENVIRONMENTID` in the yaml file with _your_ previously noted Dynatrace environment ID.
+
+_Replace_ `ENVIRONMENTID` in the yaml file with _your_ previously noted Dynatrace environment ID.
 ```
 apiVersion: dynatrace.com/v1beta1
 kind: DynaKube
 metadata:
   name: dynakube-appmon
+  annotations:
+    feature.dynatrace.com/automatic-kubernetes-api-monitoring: "true"
 spec:
   apiUrl: 'https://ENVIRONMENTID.live.dynatrace.com/api'
   namespaceSelector:
@@ -277,6 +281,7 @@ $ oc describe pods -n ol-demo-app | grep install-oneagent
 With the demo App being monitored and having OneAgent injected, metrics will be sent to the Dynatrace API.
 Switching context back to the Dynatrace web session, click to expand **Application & Microservices** in the left pane,
 and then select **Kubernetes workloads**. There you will find an overview of all your deployed workloads.
+
 By entering `appmod` in the filter bar on top of the page, all other apps will be filtered out and info will be visible
 that gives you an instant overview of key information like the Status, or the number of Pods the app runs on.
 
@@ -316,7 +321,9 @@ to memory allocation or to understand which objects often survive garbage collec
 
 Dynatrace Application Monitoring starts with the end user device,
 so you can see how the application performs on the client side, within the web browser.
+
 To investigate metrics from there, just open the **Frontend** entry in the left side menu.
+
 There you will find an entry for **My web application** with key info like the Apdex rating,
 the number of user actions, and the **Visual complete** time
 (meaning how long it took to render the visual part of the web page in the browser).
