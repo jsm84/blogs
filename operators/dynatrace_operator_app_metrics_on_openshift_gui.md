@@ -115,17 +115,9 @@ traces and metadata available to the Dynatrace platform.
 
 Login to [Dynatrace](https://sso.dynatrace.com) with a free trial account.
 
-New accounts now default to using the latest Dynatrace UI.
-While we definitely suggest trying the latest UI version, this blog was written using the classic version.
-
-To switch to the classic UI, after logging in you can click your user account name (lower left),
-and select **Latest Dynatrace**. You can then proceed with the walkthrough below.
-
-Please note that you can switch back to the latest version at any time by clicking **Latest Dynatrace** in the upper left corner.
-
 ![dynatrace-latest-version](https://github.com/jsm84/blogs/blob/assets/dynatrace-appmon/dynatrace-latest-version.png)
 
-Once you've accessed your live environment, expand the **Infrastructure** menu and select **Kubernetes** from the left pane.
+Once you've accessed your live environment, select and open **Kubernetes App** within the infrastructure section or hit 'CTRL-K' and search for "Kubernetes".
 
 Then, select **Connect automatically via Dynatrace Operator** in the top bar.
 
