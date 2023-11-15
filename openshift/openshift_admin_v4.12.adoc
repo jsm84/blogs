@@ -1,0 +1,983 @@
+== OpenShift Quick Reference Guide
+This guide is intended to be a useful reference for performing admin tasks on OpenShift.
+
+=== Things to Keep in Mind
+
+* The web console is always available, even in an offline setting.
+
+* The https://docs.openshift.com/container-platform/4.12/welcome/index.html[OpenShift Docs] are available for offline use.
+
+** This documentation includes an API object reference near the end.
+
+* This reference guide is not permitted for offline use.
+
+* The following conventions are used in this guide:
+
+** `<tags>` are used as placeholders; you are expected to fill in the correct or desired value.
+
+** `[braces]` are used for optional arguments; you can omit or fill these in at your discretion.
+
+* If you don't see a namespace set (`-n <namespace>`) in any command below, it is assumed you are working in that namespace/project.
+
+* You must first `ssh` into the proper host in order to access the client tools (`oc`, `htpasswd` and so on).
+
+* You do not have root privileges in an offline setting. Alternate text editors like `nano` are not available.
+
+** Given the above, the `EDITOR` shell var (used by `oc edit <resource>`) defaults to `vi`.
+
+** If you find the host `vi` command (alias for `vim`) to be annoying with auto-indent, use `"vi" <filename.yaml>` instead.
+
+* It is expected that any yaml snippets listed here should ideally be memorized, unless otherwise noted.
+** Some expressive yaml definitions can be created with `oc` commands, but not all (these exceptions are also noted).
+
+* Sections in this guide that are considered less important will be labeled as such.
+
+=== Common Commands
+Below is a list of important/commonly-used commands for working with OpenShift Container Platform.
+Keep in mind that `kubectl` can be used interchangeably with `oc` in most cases.
+
+* Create a resource (pod, deployment, service, quota, or any other k8s object) from a yaml or json file into the current project:
+
+  oc create -f <resource.yml|resource.json>
+
+NOTE: The yaml file format is most typically used when interacting with the OpenShift (or k8s) API
+
+* Create a resource in a given project:
+
+  oc create -f resource.yaml -n <project>
+
+NOTE: Any `oc` command can be scoped to a particular project/namespace by providing `-n <name>`
+
+* Fetch a resource (the most basic info) from the current project (optionally providing a resource name):
+
+  oc get <resource> [name]
+
+* View descriptive info for any resource:
+
+  oc describe <resource> [name]
+
+* Fetch the _entire_ resource, and output to yaml:
+
+  oc get <resource> [name] -o yaml
+
+* Fetch an entire resource and output to json:
+
+  oc get <resource> [name] -o json
+
+* Get a specific field of an object (relative to the `spec` definition of the object):
+
+  oc get <resource> [name] -o jsonpath='{.path.to.fieldname}'
+
+* View pod logs in the current project:
+
+  oc logs <pod-name>
+
+* Delete a specific resource:
+
+  oc delete <resource>/<name>
+
+* Delete a specific resource (by `metadata.name` within the file) using a yaml file:
+
+  oc delete -f <resource>/<name>
+
+* Delete *all* resources with a certain label (handy to remove things created by `oc new-app`)
+
+  oc delete all -l <key=value>
+
+* Bounce a stuck pod in the current project (must be tied to a deployment, deploymentconfig, statefulset, or replicaset):
+
+  oc delete pod <name>
+
+=== Debugging Commands
+Advanced commands used for debugging and checking application output.
+Most of these commands require cluster-admin privileges.
+
+* Create a pod used for debugging, and execute an ad-hoc command (to the view output of an app running in another pod in another namespace):
+
+  oc debug [--to-namespace=<name>] -- curl -k https://application.example.com:8080
+
+* Execute an ad-hoc command on a certain pod/deployment (to check if an app is running/listening on a certain port):
+
+  oc exec deployment/<name> -- curl https://localhost:8080
+
+* Invoke an interactive shell session on a particular pod:
+
+  oc rsh pod/<name>
+
+* Invoke an interactive shell session on a particular node:
+
+  oc debug node/<name>
+
+=== Cluster Authentication
+
+* Configure an HTPasswd Identity Provider:
+
+  oc edit oauth cluster
+
+  apiVersion: config.openshift.io/v1
+  kind: OAuth
+  metadata:
+    name: cluster
+  spec:
+    identityProviders:
+    - htpasswd:
+        fileData:
+          name: <secret-name>  <--- name of secret created in the `openshift-config` namespace
+      mappingMethod: claim
+      name: <name>        <-------- typically the name is `htpasswd` but may be different
+      type: HTPasswd
+
+NOTE: If you were successful, then saving/exiting the default `vi` editor will not throw any errors.
+
+* Wait for the pods to restart in the `openshift-authentication` namespace (takes 5-10 minutes):
+
+  watch oc get pods -n openshift-authentication
+
+=== Managing Users and Groups
+
+==== User Configuration using HTPasswd
+
+* Create a new htpasswd file with initial user:
+
+  htpasswd -cBb /path/to/htpasswd <username> <password>
+
+* Note the following `htpasswd` command options:
+** **-c**: **c**reate a new htpasswd file
+** **-B**: use the "**B**lowfish" secure algorithm for the password hash
+** **-b**: use the password provided on the command line instead of prompting (no idea why `b` is used for this option)
+** **-v**: **v**erify a user's password
+
+* Add users to an htpasswd file on disk:
+
+  htpasswd -Bb /path/to/htpasswd <username> <password>
+
+* To extract an htpasswd file from a secret (to be able to change users/passwords):
+
+  oc extract secret/<secret-name> -n openshift-config
+
+** OR if you prefer to see what is essentially occurring with the previous command:
+
+  oc get secret <secret-name> -n openshift-config \
+  -o jsonpath='{.data.htpasswd}' | base64 -d > htpasswd
+
+NOTE: In either case, the htpasswd file should be written to the current/working directory as `htpasswd`.
+
+* To add an htpasswd file to OpenShift as a secret (must go in the `openshift-config` namespace):
+
+  oc create secret generic <secret-name> \
+  --from-file=htpasswd=/path/to/htpasswd -n openshift-config
+
+==== Group Configuration
+
+* Create a new group:
+
+  oc adm groups new <group>
+
+* Add users to a group:
+
+  oc adm groups add-users <group> <username>
+
+==== Removing Kubeadmin
+
+Remove the `kubeadmin` account by removing the associated secret in the `kube-system` namespace:
+
+  oc delete secret kubeadmin -n kube-system
+
+WARNING: **Only remove kubeadmin** if you have an alternate cluster-admin account, such as `system:admin` or otherwise
+
+=== Managing Cluster Authorization (RBAC)
+
+* Add a cluster role to a specific user:
+
+  oc adm policy add-cluster-role-to-user <role>
+
+* Grant the `admin` cluster role (ability to create, edit and administer projects) to a particular user:
+
+  oc adm policy add-cluster-role-to-user admin <username>
+
+* Grant a cluster role to a particular group:
+
+  oc adm policy add-cluster-role-to-group <role> <groupname>
+
+* Remove a cluster role from a user:
+
+  oc adm policy remove-cluster-role-from-user <role> <username>
+
+* Remove a cluster role from a group:
+
+  oc adm policy remove-cluster-role-from-group <role> <groupname>
+
+=== Using Service Accounts and SCCs
+
+* View service accounts in the active project:
+
+  oc get serviceaccounts
+
+** OR:
+
+  oc get sa
+
+* Create a service account in the current project:
+
+  oc create sa <service-account-name>
+
+* Set a resource (deployment is used here) to use a certain service account:
+
+  oc set serviceaccount deployment/<name> <service-account-name>
+
+* View all security context constraints (SCCs):
+
+  oc get scc
+
+* View detail on a given SCC:
+
+  oc describe scc <scc-name>
+
+* Assign the `anyuid` SCC to the service account named `example-sa` in the current project:
+
+  oc adm policy add-scc-to-user anyuid -z example-sa
+
+=== Managing Projects
+
+NOTE: All `oc` commands not run with `-n <project>` will take effect under the current project.
+Make sure that all of your resources get created in the proper project.
+
+* To see your current project:
+
+  oc project
+
+* To view all projects (which you have the role to be able to `view`):
+
+  oc projects
+
+* Create a new project and switch to that project:
+
+  oc new-project project <project-name>
+
+* To simply create a new project:
+
+  oc create project <project-name>
+
+* To create a new `openshift-<name>` project, or to create a new project **that circumvents** a custom project template:
+
+  oc create namespace <name>
+
+* Grant project-specific rights to a user:
+
+  oc policy add-role-to-user <view|edit|admin> <username> -n <project>
+
+* View the rolebindings (who has what role) for a project:
+
+  oc get rolebindings -n <project>
+
+* Edit the description for a certain project:
+
+  oc edit project -n <project>
+
+=== Managing Storage
+
+* Allocate PVs for app storage:
+** Create the PV (which maps to a certain NFS share) by editing an example `pv.yml` and setting the `name`,
+`capacity.storage`, `nfs.server`, `nfs.path`, `accessModes` and `ReclaimPolicy` fields accordingly:
+
+  apiVersion: v1
+  kind: PersistentVolume
+  metadata:
+    name: pv-example
+  spec:
+    capacity:
+      storage: 5Gi  <------------------------- define the storage volume size
+    accessModes:
+    - ReadWriteOnce|ReadOnlyMany  <----------- set the access mode
+    nfs:
+      path: /usr/share/nginx/html  <---------- nfs share path
+      server: 172.17.0.2  <------------------- server ip address / hostname
+    persistentVolumeReclaimPolicy: Retain  <-- what to do with storage afterward
+
+** Create the PVC for the app by editing an example `pvc.yml` and changing the name of the PVC and the minimum required storage size:
+
+  apiVersion: v1
+  kind: PersistentVolumeClaim
+  metadata:
+    name: pvc-example
+  spec:
+    accessModes:
+    - ReadWriteOnce|ReadOnlyMany  <----- accessModes act as labels matching a PV
+    resources:
+      requests:
+        storage: 5Gi  <----------------- minimum storage claim
+    volumeName: pv-example  <----------- match the previously defined PV name
+    storageClassName: ""  <------------- no storage class is defined
+
+** Edit the app's deployment (or deploymentconfig) and set the `containers.volumeMount` and `spec.volumes:` section accordingly:
+
+  oc edit deployment/<name>
+
+  ...
+  spec:
+    containers:
+    - name: example-pod
+      ...
+      volumeMounts:
+        name: <volume-name>
+        path: /path/inside/of/container
+    ...
+    volumes:
+    - persistentVolumeClaim:
+        claimName: <pvc-name>
+      name: <volume-name>
+    ...
+
+NOTE: For assistance with yaml definitions for `PersistentVolumes`,
+refer to the **Storage** section in the https://docs.openshift.com/container-platform/4.12/storage/persistent_storage/persistent-storage-nfs.html[OpenShift Documentation]
+(an offline copy is made available).
+
+=== Limiting Resource Consumption
+
+* Create a `Quota` (synonym for `ResourceQuota`), which sets a hard limit for an entire project:
+
+  oc create quota <name> \
+  --hard=pod=1,limits.cpu=2,limits.memory=1Gi,replicacontrollers=3
+
+** OR:
+
+  oc create resourcequota <name> \
+  --hard=limits.cpu=500m,limits.memory=1Gi,requests.cpu=100m,requests.memory=500Mi
+
+NOTE: Any bad value or misspelled resource name within the `--hard=<resources>` list will error out (meaning, you're informed if you mess up here)
+
+* Fetch the quota (aka resourcequota) from the current project:
+
+  oc get quota [name] -o yaml
+
+* Get a quick view of Quota limits in the current project:
+
+  oc describe quota [name]
+
+* Create a `LimitRange` yaml file, which sets limits on specific resources (NOTE: `oc create limitrange` doesn't work):
+
+  apiVersion: v1
+  kind: LimitRange
+  metadata:
+    name: example-limits
+  spec:
+    limits:
+      - type: Pod
+        max:  <------------- maximum Pod limits
+          cpu: 2
+          memory: 1Gi
+        min:  <------------- minimum Pod limits
+          cpu: 200m
+          memory: 128Mi
+      - type: Container
+        defaultRequest:  <-- default Container requests (if pod template requests are empty)
+          cpu: 200m
+          memory: 128Mi
+        default:  <---------- default Container limits (if pod template limits are empty)
+          cpu: 1
+          memory: 512Mi
+        min:      <---------- minimum Container limits
+          cpu: 200m
+          memory: 128Mi
+        max:      <---------- maximum Container limits
+          cpu: 2
+          memory: 1Gi
+
+=== Enabling Developer Self Service
+
+* Assign the `self-provisioner` cluster role to a specific group (must be a cluster-admin):
+
+  oc adm policy add-cluster-role-to-group self-provisioner <group>
+
+* Disable project creation for regular users:
+** If only the `system:authenticated:oauth` group is bound to the `self-provisioner` role (not necessary if you performed the proceeding step):
+
+  oc patch clustrolebinding self-provisioners -p '{"subjects": null}'
+
+** If more users and groups have the `self-provisioner` role assigned:
+
+  oc adm policy remove-cluster-role-from-group self-provisioner system:authenticated:oauth
+
+* To retain changes after cluster restart:
+
+  oc annotate clusterrolebinding self-provisioners \
+  rbac.authorization.kubernetes.io/autoupdate="false"
+
+* Create a generic project-request template for customization:
+
+  oc adm policy create-bootstrap-project-template -o yaml > project-request.yaml
+
+* Add certain resources to a project request template file (be sure to cut/paste/indent the yaml objects into proper section):
+
+  oc get limitrange <name> -o yaml >> project-request.yaml
+  oc get networkpolicy <name> -o yaml >> project-request.yaml
+  cat kubernetes-example-object.yaml >> project-request.yaml
+
+NOTE: The above resources will get created automatically whenever a new project is created
+
+* Add a project request template to OpenShift for for cluster-wide project provisioning defaults (must be added to the `openshift-config` project)
+
+  oc create -f <template> -n openshift-config
+
+* Edit the `cluster` default project configuration to use the new template:
+
+  oc edit projects.config.openshift.io cluster
+
+  apiVersion: config.openshift.io/v1
+  kind: Project
+  metadata:
+    name: cluster
+  spec:                          <------ spec is empty (specified by `{}`) by default
+    projectRequestTemplate:
+      name: project-request      <------ default template name generated by `oc` command
+
+=== Networking Administration
+
+This section covers networking, which includes exposing apps outside an OpenShift cluster,
+securing apps with TLS, and restricting traffic between pods and namespaces.
+
+NOTE: The following commands are assumed to be run the current active project.
+Append `-n <project-name>` to target a different project (or for explicit certainty).
+
+==== Managing Services and Routes
+
+* Create a service in the current project that:
+** Listens on port 8080
+** Forwards traffic to pods on the same port
+** Selects pods with label `app=<name>`
+
+  oc create service <name> --tcp=8080:8080
+
+* Create route for an existing service:
+
+  oc expose svc/<service> --hostname=<hostname>
+
+* Create a LoadBalancer service to expose non-http protocols such as rtsp for web streaming:
+
+  oc expose deployment/<app-name> <service-name> --type LoadBalancer --target-port=####
+
+NOTE: Use `oc get services` to obtain the `EXTERNAL-IP` to use to connect to a non-http service.
+
+==== Securing Applications Using TLS
+
+* Create an edge-terminated route with the default self-signed certificates (`--hostname` is optional unless specified):
+
+  oc expose service/<service-name> <name> --hostname=desired.hostname.if-not.left.blank
+
+* Create an edge-terminated (no encryption from routers to pod) TLS route using a given certificate and key file:
+
+  oc create route edge --name=<name> --hostname=<hostname> --service=<service> \
+  --key=/path/to/key.pem --cert=/path/to/key.pem
+
+* Create a TLS secret to use for end-to-end encryption, using a provided certificate and private key:
+
+  oc create secret tls <secret-name> --cert /path/to/cert.pem --key /path/to/key.pem
+
+** OR: Generate a new secret containing a self-signed TLS keypair, by annotating an existing service:
+
+  oc annotate service <service-name> service.beta.openshift.io/serving-cert-secret-name=<name>
+
+* Update a deployment to mount a TLS secret (also for deploymentconfigs and statefulsets):
+
+  oc edit deployment/<name>
+
+  ...
+    spec:
+      containers:
+      - name: example-container
+        ...
+        volumeMounts:
+        - name: <volume-name>  <------------------- must match `spec.volumes[].name`
+          readOnly: true
+          mountPath: /path/to/tls/serving/dir  <--- this directory is usually specified
+        ...
+      volumes:
+      - name: <volume-name>  <--------------------- name of this volume
+        secret:
+          secretName: <secret-name>  <------------- name of tls secret that was created
+      ....
+
+* Create a passthrough (end-to-end encryption) route, provided that:
+** A TLS secret was created using a provided certificate and private key
+** The deployment was updated to mount the TLS secret as a volume
+
+  oc create route passthrough <name> --service <service-name> --port #### \
+  --hostname my-app.apps.example.com
+
+==== Handling Certificate Trust
+
+* To make any client app deployments trust the OpenShift self-signing CA, start by creating a configmap in the current project:
+
+  oc create configmap <name>
+
+* Inject the OpenShift CA bundle into the configmap with the following annotation:
+
+  oc annotate configmap <name> service.beta.openshift.io/inject-cabundle=true
+
+* Update the deployment to mount the configmap containng the CA bundle:
+
+  oc edit deployment/<name>
+
+  spec:
+    containers:
+    - name: client
+      ...
+      volumeMounts:
+      - mountPath: /etc/pki/ca-trust/extracted/pem  <--- default dir for CA certs in RHEL/Fedora
+        name: trusted-ca  <----------------------------- must match volume name defined below
+      ...
+    volumes:
+    - configMap:
+        defaultMode: 420
+        name: ca-bundle
+        items:
+        - key: service-ca.crt  <------------------------ key name of ca bundle in secret
+          path: tls-ca-bundle.pem  <-------------------- expected file name inside the container
+      name: trusted-ca
+    ....
+
+==== Managing Network Policies
+
+* Define a default deny-all network-policy by using an empty `podSelector` and defining no ingress rules:
+
+  apiVersion: networking.k8s.io/v1
+  kind: NetworkPolicy
+  metadata:
+    name: deny-all
+  spec:
+    podSelector: {} <------------- empty podSelector applies to all pods in a namespace
+    ingress: []  <---------------- no ingress rules are defined, so none is allowd
+
+* Define a policy that applies to pods with the `app=db` label,
+and allows connections from pods labeled `app=wordpress` that exist in a namespace with the same label:
+
+  apiVersion: networking.k8s.io/v1
+  kind: NetworkPolicy
+  metadata:
+    name: allow-wordpress
+  spec:
+    podSelector:
+      matchLabels:
+        app: db  <---------------- apply policy to pods with this label
+    ingress: <-------------------- ingress accepts a list[] of `from` rules
+    - from:  <-------------------- from also accepts a list[] type
+      - podSelector:  <----------- multiple list items compound as a logical OR
+          matchLabels:  <--------- multiple labels mean logical AND (must match all)
+            app: wordpress  <----- allow ingress from pods with this label.
+        namespaceSelector:  <----- the additional selector acts as a logical AND
+          matchLabels:
+            app: wordpress  <----- allow ingress from namespaces with this label
+
+* Lastly, define a policy that applies to all pods in the current namespace,
+and allows connections from both the OpenShift routers and namespaces labeled `app=monitor`:
+
+  apiVersion: networking.k8s.io/v1
+  kind: NetworkPolicy
+  metadata:
+    name: allow-ingress-and-monitoring
+  spec:
+    podSelector: {}  <------------ empty pod selector applies to all pods in the namespace
+    ingress:
+    - from:
+      - namespaceSelector:
+          matchLabels:
+            app: monitor  <------- allow ingress from namespaces with this label
+      - namespaceSelector:  <----- note the hyphen `-` acts as a logical OR
+          matchLabels:
+            network.openshift.io/policy-group: ingress  <-- OpenShift router label (IMPORTANT)
+
+==== Attaching Networks Using Multics (N/A)
+
+This section deals with defining and applying network attachments.
+
+NOTE: You may not need to attach additional networks in an offline environment.
+
+* Create a network attachment definition using the following info:
+
+|===
+|Field Name |Value
+
+|name
+|example-network
+
+|type
+|host-device
+
+|device
+|ens2
+
+|ipam.type
+|static
+
+|ipam.addresses
+|{"address": "172.30.20.10/24"}
+|===
+
+  vi example-network.yaml
+
+  apiVersion: "k8s.cni.cncf.io/v1"
+  kind: NetworkAttachmentDefinition
+  metadata:
+    name: example-network  <-------------------------------- name
+  spec:
+    config: '{
+              "cniVersion": "0.3.0",
+              "type": "host-device",  <--------------------- type
+              "device": "ens2",  <-------------------------- device
+              "ipam": {
+                  "type": "static",  <---------------------- ipam.type
+                  "addresses": [     <---------------------- ipam.addresses is a list[]
+                      {"address": "172.30.20.10/24"}
+                  ]
+              }
+          }'
+
+* Attach the network to a specific deployment (or deploymentconfig, etc) **at the template level**:
+
+  oc edit deployment/<name>
+
+  ...
+  spec:
+    replicas: 1
+    selector:
+      matchLabels:
+        app: wordpress
+    strategy:
+      type: Recreate
+    template:
+      metadata:
+        labels:
+          app: wordpress
+        annotations:
+          k8s.v1.cni.cncf.io/networks: example-network <---- this attaches the example-network
+      spec:
+        containers:
+      ....
+
+=== Managing Specific Resources
+
+This section covers using various resources encountered during OpenShift administration.
+Pay attention to the details, as an OpenShift administrator is expected to handle these resources.
+
+==== Using Secrets
+
+Secrets for TLS certificates were highlighted previously, but there is a specific use case covered here.
+
+* Create a create named `easter-egg` using the b64-encoded string literal `QXJlbid0IGV4YW1zIGZ1bj8/` under the key name `decode_me`:
+
+  oc create secret generic easter-egg --from-literal=decode_me='QXJlbid0IGV4YW1zIGZ1bj8/'
+
+* Make the secret available in a deployment, under the environment variable `DECODE_ME`:
+
+  oc edit deployment/<name>
+
+  ...
+  spec:
+    containers:
+    - name: decoder
+      env:
+      - name: DECODE_ME  <------- name of environment variable
+        valueFrom:
+          secretKeyRef:
+            name: easter-egg  <-- secret name
+            key: decode_me  <---- key name
+      ...
+
+
+==== Creating Cron Jobs
+
+* Check `/etc/crontab` on any RHEL host to use as a reference:
+
+  cat /etc/crontab
+  ...
+  # Example of job definition:
+  # .---------------- minute (0 - 59)
+  # |  .------------- hour (0 - 23)
+  # |  |  .---------- day of month (1 - 31)
+  # |  |  |  .------- month (1 - 12) OR jan,feb,mar,apr ...
+  # |  |  |  |  .---- day of week (0 - 6) (Sunday=0 or 7) OR sun,mon,tue,wed,thu,fri,sat
+  # |  |  |  |  |
+  # *  *  *  *  * user-name  command to be executed
+
+NOTE: Also refer to the `man 5 crontab` command to see how to run things every so many minutes, hours, etc.
+
+* Use `oc` to create a cronjob from scratch. Use the schedule `"1/* * * * *"` to run the cronjob once every minute.
+
+  oc create cronjob <name> --image=registry.example.com/pull/spec:latest \
+  --schedule="1/* * * * *"
+
+* Alternatively, you can fetch an existing crontab from a project and output to yaml:
+
+  oc get crontab [name] -o yaml > crontab.yaml
+
+** Edit the crontab yaml file, and modify the pod template as desired:
+
+  vi crontab.yaml
+
+  apiVersion: batch/v1
+  kind: CronJob
+  metadata:
+    name: example-crontab
+  spec:
+    schedule: "*/1 * * * *"
+    concurrencyPolicy: Forbid
+    jobTemplate:
+      spec:
+        template:
+          spec:
+              <--------------- pod template goes here
+
+==== Using Health Probes
+
+Review the following liveness and readiness examples.
+
+NOTE: Liveness and readiness probes are commonly defined for pods in the `openshift` namespaces.
+You may find it easier to copy/paste from another pod if you're stuck in an offline environment.
+
+* The below example uses a generic `tcpSocket` probe for both liveness and readiness:
+
+  ...
+  spec:
+    containers:
+    - name: example
+      ...
+      ports:
+      - containerPort: 9090  <-------- port the container is listening on
+        protocol: TCP  <-------------- protocol the container is using
+      livenessProbe:
+        initialDelaySeconds: 10
+        periodSeconds: 30
+        tcpSocket:    <--------------- probe is set to use generic tcp
+          port: 9090  <--------------- port that the probe is targeting
+        timeoutSeconds:
+      readinessProbe:
+        initialDelaySeconds: 3  <----- how long to wait before the first probe
+        periodSeconds: 10  <---------- how often to run the probe (interval)
+        tcpSocket:
+          port: 9090
+        timeoutSeconds: 3  <---------- how long before a timeout occurs
+      ....
+
+* The following example uses an `httpGet` probe for liveness and readiness.
+Notice that there are no delays or timeouts specified, causing the default values to take effect:
+
+  ...
+    spec:
+      containers:
+      - name: stock
+        ...
+        ports:
+          - containerPort: 8443 <--- port the container is listening on
+        readinessProbe:
+          httpGet:  <--------------- probe is set to use http
+            port: 8443  <----------- port that the probe is targeting
+            path: /readyz  <-------- path on webserver being targeted
+            scheme: HTTPS  <-------- set HTTP or HTTPS accordingly
+        livenessProbe:
+          httpGet:
+            port: 8443
+            path: /livez
+            scheme: HTTPS
+       ....
+
+=== Provisioning Apps
+
+Using any of the supported methods in this section,
+you must be able to deploy a multi-service application (frontend + db) each with persistent storage.
+
+Use the following order of operations when deploying an app:
+. Make sure that all resources get created in the correct project
+. Any/all container images need to be available in the OpenShift registry (for offline environments)
+. Create the PV for db
+. Create the PVC for db
+. Create the Deployment for db
+. Create the Service for db
+. Once all above steps are completed, repeat the above steps for frontend
+. Create the Route (enabling TLS as required) for the frontend application
+
+WARNING: Confusing terms such as "deploy app" imply that you must create a new app that doesn't exist yet.
+Be sure to check whether a deployment or deploymentconfig (`oc get all`) exists before creating a new one.
+
+==== Using OpenShift Templates (N/A)
+
+NOTE: OpenShift templates are essentially deprecated in favor of helm charts.
+
+* Create an application from a cluster-enabled (legacy OpenShift) template:
+
+  oc new-app <template_name> --image=<registry>/<image>:<tag>
+
+==== Using Kustomize
+
+* Clone a git repository containing a kustomize tree (below is a hypothetical repository):
+
+  git clone https://git.example.com/developer/kustomize-example
+  cd kustomize-example
+
+* Examine the following hypothetical directory layout.
+Notice the `base` configuration (containing a `kustomization.yaml` file) as well as the `production` overlay:
+
+  tree
+  .
+  ├── base
+  │   ├── database
+  │   │   ├── configmap.yaml
+  │   │   ├── deployment.yaml
+  │   │   ├── kustomization.yaml
+  │   │   ├── secret.yaml
+  │   │   └── service.yaml
+  │   ├── exoplanets
+  │   │   ├── configmap.yaml
+  │   │   ├── deployment.yaml
+  │   │   ├── kustomization.yaml
+  │   │   ├── route.yaml
+  │   │   ├── secret.yaml
+  │   │   └── service.yaml
+  │   └── kustomization.yaml
+  ├── overlays
+  │   └── production
+  │       ├── kustomization.yaml
+  │       └── patch-replicas.yaml
+  └── README.md
+
+NOTE: You would apply the above application using `kustomize` (`-k` option for `kubectl apply`),
+by simply targeting a directory containing a `kustomization.yaml` file.
+
+* To deploy the `base` configuration:
+
+  oc apply -k base/
+
+* To deploy the `production` overlay:
+
+  oc apply -k overlays/production/
+
+==== Using Helm Charts
+
+* Add a helm repository:
+
+  helm repo add <repo-name> http://example.com/helm/repository
+
+* To search helm repositories and show available chart versions:
+
+  helm search repo --versions
+
+* Show values from a specific chart version:
+
+  helm show values <repo-name>/<chart-name> --version 0.0.1
+
+* Output chart values to a yaml file:
+
+  helm show values <repo-name>/<chart-name> --version 0.0.1 > chart-values.yaml
+
+* Install a specific chart version, using overrides from a `values.yaml` file
+
+  helm install <chosen-release-name> <repo-name>/<chart-name> \
+  --version 0.0.1 -f chart-values.yaml
+
+* List helm charts installed to the current namespace:
+
+  helm list
+
+* Upgrade to a specific chart version, after updating fields in a `values.yaml` file:
+
+  helm upgrade <installed-release-name> <repo-name>/<chart-name> \
+  --version 0.0.2 -f chart-values.yaml
+
+* Remove an installed helm chart:
+
+  helm uninstall <installed-release-name>
+
+=== Using Developer Tools (N/A)
+
+This section covers details that may be more applicable to a developer context.
+You may or may not need to know these topics as an admin.
+
+NOTE: Thus far, this section has not been found to apply in specific offline environments.
+
+==== Using a Simple Git-based Workflow
+
+Below is a very basic, simplified git workflow that an admin might use.
+
+* Use git to pull, edit, and push code (or see the gogs instructions):
+
+  git clone https://git.example.com/example/repo
+  cd repo
+  vim README.md
+  git add -A
+  git commit -m 'initial commit'
+  git push
+
+==== Using Source-to-Image (S2I)
+
+Source-to-Image is an OpenShift specific development workflow, which uses specialized container images prepared for specific developer frameworks.
+An OpenShift developer would typically use an S2I image in conjunction with a source repo developed using a supported language or framework.
+
+An S2I build can be triggered from an OpenShift project, which would pull the S2I image, checkout the source and build the code.
+The S2I image acts as both the "builder" and the "runtime" base image.
+
+* Use S2I to build an app, then change git codebase and trigger a rebuild (the `~` is _not_ a typo):
+
+  oc new-app <imagestream>:<tag>~https://github.com/org/codebase
+  git clone https://github.com/org/codebase
+  vi codebase/README.md
+  git commit -m
+
+=== Scaling Applications
+
+As an OpenShift admin, you are expected to know how to scale apps, both manually and automatically.
+
+==== Scaling Manually
+
+* Deploy an application using `oc new-app`:
+
+  oc new-app --name=<name> --image=<registry>/<image>:<tag>
+
+* Now scale the deployment (or deploymentconfig) to 5 replicas:
+
+  oc scale deployment/<name> --replicas=5
+
+==== Scaling Automatically
+
+* Scale an application automatically using the Horizontal Pod Autoscaler.
+Use the following metrics:
+** 1 replica minimum
+** 5 replicas maximum
+** 70% CPU threshold
+
+  oc autoscale deployment/<name> --min=1 --max=5 --cpu-percent=70
+
+A new `horizontalpodautoscaler` (or `hpa`) should exist in the current namespace:
+
+  oc get hpa <name> -o yaml
+
+  apiVersion: autoscaling/v1
+  kind: HorizontalPodAutoscaler
+  metadata:
+    name: example-app  <------------------ name will match the deployment
+    namespace: example-project
+  spec:
+    maxReplicas: 5  <---------------------- maximum replica count
+    minReplicas: 1  <---------------------- minimum replica count
+    scaleTargetRef:
+      apiVersion: apps/v1
+      kind: Deployment
+      name: example-app
+    targetCPUUtilizationPercentage: 70  <-- target CPU % before scaling up/down
+  status:
+    currentReplicas: 3
+    desiredReplicas: 0
+
+=== Installing Operators
+
+NOTE: The fastest, easiest way to install any operator is to use OperatorHub from the OpenShift Admin Console.
+
+=== Gathering Cluster Info For Support
+
+* Gather cluster info for customer support:
+
+  oc adm must-gather
+
+NOTE: The above command will create a `must-gather` directory within the current working directory.
+
+* Create a tar archive of the must-gather directory to submit for support (the exact directory name will vary):
+
+  tar -czvf openshift-must-gather.tar.gz <must-gather-directory-name>
