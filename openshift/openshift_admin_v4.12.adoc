@@ -394,7 +394,7 @@ NOTE: Any bad value or misspelled resource name within the `--hard=<resources>` 
 
   oc patch clustrolebinding self-provisioners -p '{"subjects": null}'
 
-** If more users and groups have the `self-provisioner` role assigned:
+** If other users or groups have the `self-provisioner` role assigned:
 
   oc adm policy remove-cluster-role-from-group self-provisioner system:authenticated:oauth
 
