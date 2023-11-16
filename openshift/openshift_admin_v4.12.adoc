@@ -663,7 +663,7 @@ Pay attention to the details, as an OpenShift administrator is expected to handl
 
 Secrets for TLS certificates were highlighted previously, but there is a specific use case covered here.
 
-* Create a create named `easter-egg` using the b64-encoded string literal `QXJlbid0IGV4YW1zIGZ1bj8/` under the key name `decode_me`:
+* Create a secret named `easter-egg` using the b64-encoded string literal `QXJlbid0IGV4YW1zIGZ1bj8/` under the key name `decode_me`:
 
   oc create secret generic easter-egg --from-literal=decode_me='QXJlbid0IGV4YW1zIGZ1bj8/'
 
