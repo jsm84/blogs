@@ -1,0 +1,98 @@
+== Testing Against the Red Hat OperatorHub Index Using FBCs
+
+Starting with v4.11 onward, `opm index add` is no longer used (trying to do this results in a `sqlite db` related error). To build and test against the production index (certified-operators, redhat-operators, or redhat-marketplace), you should use file-based-catalogs (FBCs) instead.
+
+Please refer to the Red Hat https://docs.openshift.com/container-platform/4.14/operators/understanding/olm-packaging-format.html#olm-file-based-catalogs_olm-packaging-format[OpenShift documentation] and the upstream https://olm.operatorframework.io/docs/concepts/olm-architecture/operator-catalog/creating-an-update-graph/[OLM documentation] for information on file-based-catalogs.
+
+Below is a summary of how to generate a FBC from any Red Hat OperatorHub index as the seed. This makes it possible to test that an operator bundle will exist happily alongside existing operators in OperatorHub.
+
+Essentially, there are three yaml (or json) components required to add an operator to a FBC index:
+1. Package
+2. Bundles(s)
+3. Channel(s)
+
+As a partner, I'd probably start with the https://github.com/redhat-openshift-ecosystem/community-operators-prod/issues/793[pruning example] from the sqlite error mentioned previously, so that I'm only seeing and working with operator files that I own/manage.
+
+Start with "rendering" the yaml file list from the catalog index, using the Red Hat Marketplace v4.11 index as the example (replace this step with the pruning example, if you'd rather not see or deal with the _entire_ index):
+
+  opm render registry.redhat.io/redhat/redhat-marketplace-index:v4.11 -o yaml > redhat-marketplace-index.v4.11.yaml
+
+The above command gives list of yaml objects (the package, bundles and channels for all operators in the index), all in one file. It's difficult to visualize and maintain or update when in this format, so I split the contents out into multiple yaml files using the `yq` command (version 4), with each file named according to the `package`, `name` and `schema` (object type) fields within:
+
+  mkdir rhmp-v4.11-split
+  cd rhmp-v4.11-split
+  yq 'select(.schema == "olm.bundle" or .schema == "olm.channel")' ../redhat-marketplace-index.v4.11.yaml | yq -s '.package + "." + .name + "." + .schema'
+
+That will split the yaml objects each into their own file. However, the package objects are missing, because they don't contain a `package` field (as that would be redundant). Excluding the select statement above generates a `.yml` ghost file, which ends up as a duplicate of the zabbix-operator (last processed) package file. You can generate the package objects from the singular yaml file similarly:
+
+  yq 'select(.schema == "olm.package")' ../redhat-marketplace-index.v4.11.yaml | yq -s '.name + "." + .schema'
+
+Now, you need to insert your bundle v6.5.0 into the update graph of your operator (do this for each operator package name):
+
+  opm render path.to/bundle/image:v6.5.0 -o yaml > k10-example-operator-rhmp.v6.5.0.olm.bundle
+
+Lastly, edit the channel file and place your bundle version into the update graph:
+
+ vi k10-kasten-operator-rhmp.stable.olm.channel
+
+----
+---
+entries:
+  - name: k10-kasten-operator-rhmp.v5.5.4
+  - name: k10-kasten-operator-rhmp.v5.5.5
+  - name: k10-kasten-operator-rhmp.v5.5.6
+  - name: k10-kasten-operator-rhmp.v5.5.8
+  - name: k10-kasten-operator-rhmp.v5.5.9
+  - name: k10-kasten-operator-rhmp.v6.0.0
+    skips:
+      - k10-kasten-operator-rhmp.v5.0.2
+      - k10-kasten-operator-rhmp.v5.5.2
+      - k10-kasten-operator-rhmp.v5.5.4
+      - k10-kasten-operator-rhmp.v5.5.8
+      - k10-kasten-operator-rhmp.v5.5.0
+      - k10-kasten-operator-rhmp.v5.5.5
+      - k10-kasten-operator-rhmp.v5.5.6
+      - k10-kasten-operator-rhmp.v5.5.9
+      - k10-kasten-operator-rhmp.v5.5.11
+  - name: k10-kasten-operator-rhmp.v6.0.1
+    replaces: k10-kasten-operator-rhmp.v6.0.0
+  - name: k10-kasten-operator-rhmp.v6.0.11
+    replaces: k10-kasten-operator-rhmp.v6.0.9
+  - name: k10-kasten-operator-rhmp.v6.0.12
+    replaces: k10-kasten-operator-rhmp.v6.0.11
+  - name: k10-kasten-operator-rhmp.v6.0.2
+    replaces: k10-kasten-operator-rhmp.v6.0.1
+  - name: k10-kasten-operator-rhmp.v6.0.3
+    replaces: k10-kasten-operator-rhmp.v6.0.2
+  - name: k10-kasten-operator-rhmp.v6.0.4
+    replaces: k10-kasten-operator-rhmp.v6.0.3
+  - name: k10-kasten-operator-rhmp.v6.0.5
+    replaces: k10-kasten-operator-rhmp.v6.0.4
+  - name: k10-kasten-operator-rhmp.v6.0.6
+    replaces: k10-kasten-operator-rhmp.v6.0.5
+  - name: k10-kasten-operator-rhmp.v6.0.7
+    replaces: k10-kasten-operator-rhmp.v6.0.6
+  - name: k10-kasten-operator-rhmp.v6.0.8
+    replaces: k10-kasten-operator-rhmp.v6.0.7
+  - name: k10-kasten-operator-rhmp.v6.0.9
+    replaces: k10-kasten-operator-rhmp.v6.0.8
+  - name: k10-kasten-operator-rhmp.v6.5.0     <1>
+    replaces: k10-kasten-operator-rhmp.v6.0.12
+name: stable
+package: k10-kasten-operator-rhmp
+schema: olm.channel
+----
+<1> Set the replaces or skips directive at this level for the new bundle version.
+
+With that, you should have a nicely organized file representation of the Red Hat Marketplace v4.11 index in the `rhmp-v4.11-split` directory. You can validate that using `opm`:
+
+  cd ..
+  opm validate rhmp-v4.11-split
+
+The above command should give no output, and an exit code of 0. This means you have a valid file-based-catalog directory. Go ahead and create the dockerfile:
+
+  opm generate dockerfile rhmp-v4.11-split
+
+The dockerfile should be in the current directory as `rhmp-v4.11-split.Dockerfile`. Just build the index image from that Dockerfile and push it to your hosting registry. Create a catalog source pointing to that image (into the `openshift-marketplace` namespace) and you should see the new index in OperatorHub.
+
+This seems like alot compared to the previous method, but the goal is to make everything declarative (versus the imperative `opm index add` approach) and make it easier to both visualize and maintain an operator update graph.
