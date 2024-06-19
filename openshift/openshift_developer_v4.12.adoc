@@ -1,0 +1,712 @@
+== OpenShift v4.12 Developer Guide
+This is intended to be used as a reference guide for developer tasks on OpenShift v4.12.
+
+Topics of specific importance in this guide include:
+* <<conventions_requirements,Conventions and Requirements>>
+ ** Using a <<simple_git_workflow,simple Git workflow>>
+ ** <<using_s2i_overview,Using Source-to-Image>>
+ ** <<managing_application_builds,Managing Application Builds>>
+ ** <<debugging_commands,Debugging Commands>>
+* <<build_troubleshoot_apps,Build and Troubleshoot Applications>>
+ ** <<build_troubleshoot_s2i,Build and troubleshoot a Source-to-Image application>> (on OpenShift) using a git repository
+ ** <<troubleshoot_resource_exhaustion,Troubleshoot Resource Exhaustion>>
+ ** <<build_troubleshoot_container,Build and troubleshoot a container application>> using a Containerfile in a git repo
+* <<s2i_in_depth,Source-to-Image In-Depth>>
+ ** <<overloading_s2i_scripts,Overloading S2I Scripts>>
+ ** <<creating_s2i_builder_image,Creating an S2I Builder Image>>
+ ** <<s2i_practice,S2I Practice Scenario>>
+* <<advanced_build_configuration,Advanced Build Configuration>>
+ ** <<post_commit_hooks,Post Commit Hooks>>
+ ** <<build_deployment_triggers,Build and Deployment Triggers>>
+* <<using_configmaps,Using ConfigMaps>> in an existing application
+* Using <<downward_api,Downward API>> in an existing application
+* <<health_probes,Setting health/readiness checks on an application>>
+* <<helm_charts,Deploying multi-instance apps using helm charts>>
+ ** <<init_helm,Initialize Helm>>
+ ** <<test_instance,Creating a Test Instance>>
+ ** <<prod_instance,Creating a Prod Instance>>
+* Creating an application using customized <<application_templates,OpenShift Templates>>
+* Develop CI/CD solutions using OpenShift Pipelines (Tekton)
+
+=== Conventions and Requirements [[conventions_requirements]]
+
+This section covers essential topics used throughout the rest of the guide.
+
+==== Using a Simple Git Workflow [[simple_git_workflow]]
+
+The most basic git workflow will suffice to complete any code changes required in this guide.
+Such an example is outlined in this section.
+
+Checkout the application git repo:
+
+  git clone https://git.example.com/example/repo
+
+Change to the repo directory:
+
+  cd repo
+
+Make the desired changes:
+
+  vim README.md
+
+Add the changed files to your commit:
+
+  git add -A
+
+Make the commit:
+
+  git commit -m 'initial commit'
+
+Finally, push the changes to the remote git repo:
+
+  git push
+
+==== Using Source-to-Image (S2I) - Basic Workflow Overview [[using_s2i_overview]]
+
+Source-to-Image is an OpenShift specific development workflow, which uses specialized container images prepared for specific developer frameworks.
+An OpenShift developer would typically use an S2I image in conjunction with a source repo developed using a supported language or framework.
+The workflow is very similar to multi-stage Containerfile builds (start with a builder image, then copy resulting artifacts into a separate app image), which are pre-dated by S2I.
+
+An S2I build can be triggered from an OpenShift project, which would pull the S2I image, checkout the source and build the code.
+The S2I image acts as both the "builder" and the "runtime" base image.
+
+The remainder of this section covers using S2I to build an app, changing the codebase in the git repo, and triggering a rebuild.
+
+Start by running `oc new-app`, which will create a new application in the current project (the `~` is _not_ a typo):
+
+  oc new-app <imagestream>:<tag>~https://github.com/example/repo
+
+The rest is (mostly) a repeat of the <<simple_git_workflow,simple git workflow>> from the previous section.
+
+Clone the remote repo:
+
+  git clone https://github.com/org/codebase
+  cd codebase/
+
+Make your code changes:
+
+  vi README.md
+
+Add your files, then commit your changes:
+
+  git add README.md
+  git commit -m
+
+Push your changes upstream. Github-based projects should have code-commit webhooks preconfigured in OpenShift to automatically trigger builds on a push to the repo (more on this in <<advanced_build_configuration,Advanced Build Configuration>>).
+Regardless, you can trigger a rebuild using `oc`:
+
+  oc start-build bc/<build-config-name>
+
+==== Managing Application Builds [[managing_application_builds]]
+
+To start a fresh application build from scratch in the current project:
+
+  oc new-app --name <name> [ -i <imagestream> | --docker-file <dockerfile> ] [--build-env <var>] <source_url>
+
+Below are a few basic operations that can be performed on buildconfigs.
+
+Start an existing build
+
+  oc start-build bc/<name>
+
+Cancel a build:
+
+  oc cancel-build bc/<name>
+
+Delete a build config:
+
+  oc delete bc/<name>
+
+==== Debugging Commands [[debugging_commands]]
+This section lists advanced commands used for debugging and checking application output.
+Most of these commands require cluster-admin privileges.
+
+Launch a debug shell on a failing pod:
+
+  oc debug pod/<name>
+
+Launch a specific container image and execute a command (such as `sleep`, to keep a failing container running so you can `oc rsh` in):
+
+  oc run --image <registry.example.com/namespace/image:tag> -- sleep 600
+
+Create a pod used for debugging, and execute an ad-hoc command (to the view output of an app running in another pod in another namespace):
+
+  oc debug [--to-namespace=<name>] -- curl -k https://application.example.com:8000
+
+Execute an ad-hoc command on a certain pod/deployment (to check if an app is running/listening on a certain port):
+
+  oc exec deployment/<name> -- curl https://localhost:8000
+
+Invoke an interactive shell session on a particular pod:
+
+  oc rsh pod/<name>
+
+Invoke an interactive shell session on a particular node:
+
+  oc debug node/<name>
+
+Run commands as a different user:
+
+  oc <command> --as <username>
+
+=== Build and Troubleshoot Applications [[build_troublehoot_apps]]
+
+==== Build and Troubleshoot a Source-to-Image (s2i) Application [[build_troubleshoot_s2i]]
+
+Build a node.js application (hastebin) from source using a git repo, with the following requirements:
+* Create a GitHub fork of the following repo: https://github.com/jsm84/hastebin-bf
+* Pass the `--name` flag to set the desired app name of `hastebin`
+* Use `--build-env` to pass a build variable of `npm_config_registry=<url>`
+* Create the application in a new namespace called `makehaste`.
+
+Start by creating a new namespace:
+
+  oc new-project makehaste
+
+Now create the application in the namespace:
+
+  oc new-app --name=hastebin https://github.com/<yourfork>/hastebin-bf --build-env npm_config_registry=https://registry.npmjs.org
+
+NOTE: We used the default NPM registry in our build environment variable, but this variable must be set differently in an _offline environment_.
+
+Watch the log from the build pod (hit CTRL+C to exit) and look for failure info:
+
+  oc logs -f bc/hastebin
+
+Use git to clone the source repo, and a linter (or a proper IDE) to fix any issues with json. Refer to the Simplified Git Workflow to commit and push the code to the remote (which is your cloned) git repo.
+
+To restart the failed `hastebin` build after updating the remote repository:
+
+  oc start-build bc/hastebin
+
+Check the logs again and make sure the build completes successfully. Run `oc get pods` to make sure the application pods come up.
+
+Expose a route to access the application with a web browser:
+
+  oc expose svc/hastebin
+
+Fetch the URL from the route with `oc get route` and then open the URL in a browser to test the application.
+
+==== Troublshoot Resource Exhaustion [[troubleshoot_resource_exhaustion]]
+
+Sometimes a pod might not come up due to resource constraints.
+It's necessary to be able to identify when this occurs, and adjust the resource limits so the pod will run.
+
+Take the following example `oc get pods` output:
+
+  NAME                     READY   STATUS      RESTARTS   AGE
+  nginx-example-1-z95lt    0/1     Pending     0          1s
+
+Take a closer look with `oc describe pods`:
+
+  Events:
+    Type     Reason            Age   From               Message
+    ----     ------            ----  ----               -------
+    Warning  FailedScheduling  20s   default-scheduler  0/1 nodes are available: 1 Insufficient memory. preemption: 0/1 nodes are available: 1 No preemption victims found for incoming pod..
+
+Take a quick look at the deployment[config]:
+
+----
+...
+spec:
+  template:
+    spec:
+      containers:
+      - name: nginx-example
+        ...
+        resources:
+          requests:
+            memory: 20Gi <1>
+   ....
+----
+<1> The memory request is more than the available memory of the available node(s).
+
+To fix this, we must lower the requested memory to be within the limit of the available nodes.
+In our case, we have a single node cluster w/12GiB of total memory, so the value must be less than this amount.
+Memory availability will of course vary across different OpenShift deployments, so the values shown here will likely differ.
+
+NOTE: It's best to request the minimal amount of memory necessary for the application to run, which for a static webserver is typically 1GiB or even less.
+
+==== Troubleshoot Containerfile Builds [[build_troubleshoot_container]]
+
+Modify a Containerfile app (hosted at a remote git repo) so that it runs properly
+
+There are two different git projects comprising this example application:
+1. https://github.com/jsm84/gosimplehttpserver
+    This is a simple go-based web server chosen to serve the example content.
+2. https://github.com/jsm84/gohugo-quickstart
+    This is a quickstart website generated with `hugo` which uses the https://github.com/theNewDynamic/gohugo-theme-ananke[Ananke] theme.
+
+The application has the following requirements:
+* As before, you'll need to fork the https://github.com/jsm84/gohugo-quickstart repo on GitHub so that you can push changes to the repo.
+* All resources must be created in a namespace/project named `hugo`.
+* The application name of `quickstart`.
+* The application must run and be accessible from outside the cluster (from a web browser or cli web client).
+
+Create a new project named `hugo` to satisfy the project naming requirement:
+
+  oc new-project hugo
+
+Launch a new application build. This should default to the `docker` strategy due to the Containerfile at the repo root:
+
+  oc new-app --name=hugo https://github.com/<example-org>/gohugo-quickstart
+
+Fetch the build pod name again (`oc get pods`), and watch the logs until the build completes:
+
+  oc logs -f bc/quickstart
+
+Check the application pod, and you'll see an error:
+
+  $ oc get pods
+  NAME                          READY   STATUS                 RESTARTS   AGE
+  quickstart-1-build            0/1     Completed              0          13m
+  quickstart-855fb499b6-vhjqc   0/1     CreateContainerError   0          37s
+
+Logs are not directly available from the pod, so use `oc describe` to see what happened:
+
+ $ oc describe pod/quickstart-855fb499b6-vhjqc
+  ...
+  Warning  Failed  2s  kubelet  Error: container create failed: ... level=error msg="runc create failed: unable to start container process: exec: \"/app/simplehttpserver\":  permission denied"
+
+NOTE: See the next section on Debugging Commands that you can use to troubleshoot.
+Also note that newer versions of OpenShift may reveal the cause of the issue (as opposed to the generic `permission denied` error) in the `oc describe pod` output.
+
+HINT: Check the Containerfile for errors. Use the https://github.com/containers/common/blob/main/docs/Containerfile.5.md[Containerfile] man-page spec as a reference.
+Despite the misleading error message, the issue _does not_ relate to UIDs, file/directory permissions or Security Context Constraints.
+
+=== Source-to-Image In-Depth [[s2i_in_depth]]
+
+As the title conveys, this section goes a little more in-depth on the topic of Source-to-Image, including:
+
+* Overloading S2I scripts
+* Creating an S2I builder image (legacy)
+* Practice editing/overloading S2I scripts
+
+==== Overloading S2I Scripts [[overloading_s2i_scripts]]
+
+The "stock" (unmodified, upstream) S2I builder images can have their scripts overloaded (overridden) by providing your own scripts inside the `s2i/bin` directory within the application source repo.
+
+Two scripts are required for S2I:
+* `s2i/bin/assemble` script which builds code and reuses artifacts
+* `s2i/bin/run` script which gets set as the the entrypoint of the container image
+
+NOTE: You must use the `exec` command when calling the `run` script via wrapper, to ensure that the script still runs as PID 1
+
+Reference the S2I image labels to see where the original scripts are located:
+
+  skopeo inspect <transport>://example.com/remote/repository:tag
+
+Or alternatively:
+
+  podman inspect <container-id>
+
+Create a `save-artifacts` script to enable incremental builds for java or node.js with the following requirements:
+* The script must stream artifacts to stdout as a tar file (eg: `tar -cf - .m2` for Maven)
+* The script must also redirect all other output to `/dev/null`
+
+To inspect an S2I builder image manually (without access to the source repo):
+
+  podman run --name <name> -it rhscl/httpd-24-rhel7 bash
+  cat /usr/libexec/s2i/assemble
+  cat /usr/libexec/s2i/run
+  cat /usr/libexec/s2i/usage
+  exit
+
+=== Creating an S2I Builder Image (Legacy) [[creating_s2i_builder_image]]
+
+NOTE: This section relies on the docker daemon/socket (which `podman` does not expose for security reasons), so it is marked as Legacy.
+
+In this section we'll generate a default s2i builder image using the `s2i` tool, which installs the ruby gem `asdf` that serves the working directory contents over http (port 8080 in this example).
+Install the `docker` and `source-to-image` packages in RHEL/Fedora if you wish to follow along.
+
+Generate a new S2I image named `my-s2i-builder` using the syntax `s2i create <image-name> <directory-name>`:
+
+  s2i create my-s2i-builder my-s2i-builder
+
+Switch to the newly created build directory, then edit the Containerfile and the scripts in `s2i/` as desired.
+Once you've finished editing the scripts, build the s2i image using podman:
+
+  cd my-s2i-builder
+  docker build -t quay.io/example/my-s2i-builder:latest .
+
+Create a simple index file in a new source directory:
+
+  cd ..
+  mkdir my-s2i-src/
+  echo '<h1>Hello World!!!</h1>' > my-s2i-src/index.html
+
+With the builder image ready, you can create an app image from it using `s2i`:
+
+  s2i build my-s2i-src/ quay.io/example/my-s2i-builder:latest quay.io/example/my-s2i-app:latest
+
+Test the resulting image using podman:
+
+  docker run --name <arbitrary_name> -u 1001 -p 8080:8080 -d s2i-sample-app
+  docker ps
+  curl http://localhost:8080
+  docker stop <name>
+
+If all is well, tag and push the image to the external registry
+
+Create an imagestream in the current project using `oc import-image <name> --from <registry>/<image> --confirm --insecure`
+
+When using `oc new-app`, remember to prefix the git URL using the name of the imagestream created in the previous step
+
+==== S2I Practice Scenario [[s2i_practice]]
+
+As an additional/optional challenge, try using the S2I build strategy on your own in an OpenShift setting.
+The application requirements are outlined here, but the process is left as an exercise for the reader.
+
+Using a remote source repo, edit the S2I scripts for the `rhscl/httpd-24-rhel` builder image so that:
+
+* The S2I `assemble` script copies `.html` files from `/tmp/src` into `./`
+
+HINT: Use `ENV DOCROOT=/var/www/html` and `ONBUILD COPY src/ ${DOCROOT}/` to acheive this
+
+* The application actually builds and runs (I get an error saying "unknown source repository" when using `oc new-app`
+
+* The app should display the contents of `index.html` from the base of the git repo
+
+NOTE: You must prefix the git URL using (`httpd~`) tilde notation (which disables the automatic code detection) to ensure that the `rhscl/httpd24-rhel7` builder image gets used (-i will not work since the code detection will fail)
+
+=== Advanced Build Configuration [[advanced_build_configuration]]
+This section covers advanced topics when dealing with BuildConfig objects in OpenShift.
+
+To change the log level to verbose for a specific build:
+
+  oc set env bc/<name> BUILD_LOGLEVEL="4"
+
+==== Post Commit Hooks [[post_commit_hooks]]
+
+To run a command (such as a python script) as a post-commit hook:
+
+  oc set build-hook bc/<name> --post-commit --command -- exec <command> <arg1> <--option>
+
+To run a shell script as a post-commit hook:
+
+  oc set build-hook bc/<name> --post-commit --script="<script> <arg1>..."
+
+==== Build and Deployment Triggers [[build_deployment_triggers]]
+
+There are a few different build triggers supported in OpenShift:
+* Config change trigger - this triggers a build whenever the buildconfig itself is modified
+* Webhook trigger - triggers a build when the supported remote code repository (such as GitHub or GitLab) gets updated
+* Image change trigger - this causes a build to trigger when a container image changes
+
+To set a config change trigger on a build config:
+
+  oc set triggers bc/<name> --from-config
+
+Set a webhook trigger:
+
+  oc set triggers bc/<name> --from-gitlab
+
+Setting an image change trigger:
+
+  oc set triggers bc/<name> --from-image=<project>/<image>:<tag>
+
+To remove a trigger from a buildconfig:
+
+  oc set triggers bc/<name> --from-<source> --remove
+
+NOTE: `oc new-app` creates both a generic and a git webhook (updating a git webhook means you must reconfigure the git service for the newly created URL)
+
+To test a generic webhook, obtain the webhook URL and run the following curl command:
+
+  oc describe bc/<name>
+  curl -X POST -k <webhook_url>
+
+You can test an image change trigger using the following procedure:
+
+  oc new-app --name <name> s2i~registry.example.com:5000/some/image
+  oc logs -f bc/<name>
+  oc get pods
+  oc describe bc/<name> | grep Triggered
+  <push a new image>
+  oc import-image s2i:latest -n openshift (requires cluster-admin role)
+
+=== Using ConfigMaps [[using_configmaps]]
+Configure an application to use a configmap.
+
+Create a configmap:
+
+  oc create cm/<name> --from-literal=<key>=<value>
+
+Set deployment environment variables from a configmap:
+
+  oc set env deployment/<name> --from cm/<name>
+
+To see the vars in a deployment:
+
+  oc set env deployment/<name> --list
+
+Set environment variables in a deploymentconfig:
+
+  oc set env dc/<name> --from cm/<name>
+
+To see env vars in a deploymentconfig:
+
+  oc set env dc/<name> --list
+
+To see active environment vars in a running container:
+
+  oc rsh <podname> env | grep <value>
+
+Export the configmap to a json formatted file:
+
+  oc get cm/<name> -o json > <path/to/output.json>
+
+NOTE: When creating secrets using `oc` or `kubectl`, remember to use the `stringData` attribute to enter secret values without encoding.
+
+=== Using Downward API [[downward_api]]
+
+Kubernetes exposes object metadata field values (such as `metadata.name`) for use within an object definition.
+This section describes the typical way to utilize Downward API in an application.
+
+Take, for example, the following pod yaml definition:
+
+----
+apiVersion: v1
+kind: Pod
+metadata:
+  name: downward-example
+  namespace: downward-test
+spec:
+  containers:
+  - name: ubi-example
+    env:
+    - name: POD_NAME
+      valueFrom:
+        fieldRef:
+          fieldPath: metadata.name  <1>
+    - name: POD_NAMESPACE
+      valueFrom:
+        fieldRef:
+           fieldPath: metadata.namespace  <2>
+    image: registry.access.redhat.com/ubi9/ubi-minimal:latest
+    command:
+    - "sleep"
+    - "3600"
+----
+<1> Reference to pod name
+<2> Reference to pod namespace
+
+You can see both the name of the pod, and the namespace that the pod resides in are both made available as the environment variables `POD_NAME` and `POD_NAMESPACE`, respectively.
+
+=== Health Probes [[health_probes]]
+
+As with OpenShift administration, you'll need to add liveness and readiness probes to an application, which OpenShift will use to to determine an application's health or readiness state (respectively).
+
+HINT: Liveness and readiness probes are commonly defined for pods in the `openshift` namespaces.
+You may find it easier to copy/paste from another pod if you're stuck in an offline environment.
+
+* The below example uses a generic `tcpSocket` probe for both liveness and readiness:
+
+----
+  ...
+  spec:
+    containers:
+    - name: example
+      ...
+      ports:
+      - containerPort: 9090  <1>
+        protocol: TCP  <2>
+      livenessProbe:
+        initialDelaySeconds: 10
+        periodSeconds: 30
+        tcpSocket:    <3>
+          port: 9090  <4>
+        timeoutSeconds:
+      readinessProbe:
+        initialDelaySeconds: <5>
+        periodSeconds: 10  <6>
+        tcpSocket:
+          port: 9090
+        timeoutSeconds: 3  <7>
+      ....
+----
+<1> port the container is listening on
+<2> protocol the container is using
+<3> probe is set to use generic tcp
+<4> port that the probe is targeting
+<5> how long to wait before the first probe
+<6> how often to run the probe (interval)
+<7> how long before a timeout occurs
+
+
+* The following example uses an `httpGet` probe for liveness and readiness.
+Notice that there are no delays or timeouts specified, causing the default values to take effect:
+
+----
+  ...
+    spec:
+      containers:
+      - name: stock
+        ...
+        ports:
+          - containerPort: 8443 <1>
+        readinessProbe:
+          httpGet:  <2>
+            port: 8443  <3>
+            path: /readyz  <4>
+            scheme: HTTPS  <5>
+        livenessProbe:
+          httpGet:
+            port: 8443
+            path: /livez
+            scheme: HTTPS
+       ....
+----
+<1> port the container is listening on
+<2> probe is set to use http
+<3> port that the probe is targeting
+<4> path on webserver being targeted
+<5> set HTTP or HTTPS accordingly
+
+NOTE: You can also copy the readiness/liveness yaml bits from an example template on the system (check `/usr/share/openshift/examples/quickstart-templates`) or refer to the https://docs.openshift.com/container-platform/latest/rest_api/index.html[OpenShift API spec] to view the schema.
+
+=== Deploying Multi-Instance Apps using Helm Charts [[helm_charts]]
+
+WARNING: You'll need the `helm` [binary](https://github.com/helm/helm/releases/latest) for your platform to continue.
+
+Whereas there is also overlap with OpenShift administration when it comes to installing and managing helm charts,
+for development purposes, this guide mainly focuses on managing multiple deployments (such as development and production) of a particular chart.
+
+You will learn how to create multiple chart values overlays (similar to using `kustomize`) to use for installing different configurations of the same helm-based app.
+
+==== Initialize Helm [[init_helm]]
+
+In this example, we use the Cryostat helm chart for OpenShift in a multi-instance deployment.
+
+HINT: In some situations, the helm chart source will be provided for you. This step is provided to obtain a helm chart to use in the next two sections.
+
+Add the https://charts.openshift.io repository to the helm client:
+
+  helm repo add openshift-charts https://charts.openshift.io
+
+Locate the `cryostat` chart:
+
+  helm search repo crysotat
+
+----
+NAME                            	CHART VERSION	APP VERSION 	DESCRIPTION
+openshift-charts/redhat-cryostat	0.4.0+1      	2.4.0.redhat	Securely manage JFR recordings for your contain...
+----
+
+Use `helm show values openshift-charts/cryostat` to view the chart values.
+
+Notice the `pvc` section at the end of the output:
+
+----
+pvc:
+  ## @param pvc.enabled Specify whether to use persistentVolumeClaim or EmptyDir storage
+  enabled: false
+  ## @param pvc.annotations [object] Annotations to add to the persistentVolumeClaim
+  annotations: {}
+  ## @param pvc.storage Storage size to request for the persistentVolumeClaim
+  storage: 500Mi
+  ## @param pvc.accessModes Access mode for the persistentVolumeClaim. See: [Access Modes](https://kubernetes.io/docs/concepts/storage/persistent-volumes/#persistentvolumeclaims)
+  accessModes:
+    - ReadWriteOnce
+  ## @param pvc.selector [object] Selector for the persistentVolumeClaim. See: [Selector](https://kubernetes.io/docs/concepts/storage/persistent-volumes/#persistentvolumeclaims)
+  selector: {}
+  ## @param pvc.storageClassName [string, nullable] The name of the StorageClass for the persistentVolumeClaim. See: [Class](https://kubernetes.io/docs/concepts/storage/persistent-volumes/#persistentvolumeclaims)
+  # storageClassName:
+----
+
+NOTE: You can also download the chart archive using `helm fetch <chartname>` and extract it to view the chart's `values.yaml` file.
+
+==== Creating a Test Instance [[test_instance]]
+
+Given the previous insight, let's install a test instance of the cryostat chart, with the following specifications:
+* namespace/project should be called `cryostat-test`
+* data volume should be ephemeral / non-persistent
+* helm release name should also be `cryostat-test`
+
+Create the new project:
+
+ oc new-project cryostat-test
+
+Install the chart. The default values will suffice for an ephemeral instance:
+
+ helm install cryostat-test openshift-charts/redhat-cryostat
+
+Use the `helm list` command to view the install releases:
+
+----
+NAME         	NAMESPACE    	REVISION	UPDATED                                	STATUS  	CHART         	APP VERSION
+cryostat-test	cryostat-test	1       	2024-06-18 16:23:00.462579542 -0400 EDT	deployed	cryostat-0.4.0	2.4.0.redhat
+----
+
+Verify that there were no PVC's created by using `oc get pvc`:
+
+ No resources found in cryostat-test namespace.
+
+==== Creating a Prod Instance
+
+=== Application Templates [[application_templates]]
+
+Application Templates (we'll refer to them simply as templates) are essentially a list of all the resources (kube manifests) that make up any given application... the deployments / pods, services, routes, and so on.
+Templates have existed on OpenShift since version 3, and though there is some overlap between templates and helm charts, templates are more streamlined and can be represented as a single yaml file.
+
+To deploy an application from a template:
+
+  oc new-app --file <template.json>
+
+Or for templates that have been added to the `openshift` project:
+
+  oc new-app <template-name>
+
+To view the output of a template:
+
+  oc process <template-name>
+
+To process a template from a file:
+
+  oc process -f <template.yaml>
+
+The `oc process` command can be chained to `oc create` using a pipe, which will create all of the template resources on the cluster:
+
+  oc process -f <template.yaml> | oc create -f -
+
+NOTE: Template parameters are passed to `oc new-app` and `oc process` using the `-p key=value` syntax (`-e` is used to set env vars, not template parameters)
+
+You can also export a template from existing resources:
+
+  oc export is,bc,dc,svc,route --as-template=<name> > mytemplate.yml
+
+Then you can deploy the app template into the current project:
+
+  oc create -f mytemplate.yml
+
+Finally, create an application from the template, where `<template-name>` is the original app name prior to export:
+
+  oc new-app <template-name>
+
+You may need to customize a template in certain circumstances.
+Parameter placeholders have a simalar syntax to shell variables (eg: `${PARAMETER_NAME}`) within a template.
+
+Parameters are actually defined (and can be given default values) at the end of a template:
+
+  parameters:
+    - name: SOURCE_REPOSITORY_URL
+      displayName: Source Repository URL
+      description: The URL of the repository with your application source code
+      value: https://github.com/sclorg/cakephp-ex.git
+      required: true
+    - name: GITHUB_WEBHOOK_SECRET
+      description: A secret string used to configure the GitHub webhook
+      generate: expression
+      from: "[a-zA-Z0-9]{40}"
+    - name: REPLICA_COUNT
+      description: Number of replicas to run
+      value: "2"
+      required: true
+
+Note that two of the parameters are `required` and given default values.
+Also note that random string generation is possible when given a character class (such as `[a-zA-Z0-9]`) and a length value (such as `{40}`).
+
+
+=== OpenShift Pipelines [[openshift_pipelines]]
+
+**TO DO**

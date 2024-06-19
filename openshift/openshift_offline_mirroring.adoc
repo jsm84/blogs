@@ -1,0 +1,98 @@
+= Mirroring Operator Images for Offline Use With OpenShift
+
+This guide outlines a simplified, step-by-step procedure for mirroring operator images for offline use by an OpenShift cluster.
+
+== Mirroring Procedure
+* Download the oc-mirror `kubectl` plugin
+* Download and install the mirror-registry on the (optionally remote) host machine
+ * Extract the `mirror-registry` tar file into it's own directory (I suggest `$HOME/mirror-registry`)
+ * Install to a volume (defaults to `/home`) with enough space to host the registry
+ * Accept defaults for the simplest installation
+ * Registry hostname will default to the hostname of the machine is installed on.
+ * Record the user credentials for quay
+ * Test quay login from an external host (CSB hosts should configure multicast DNS / mdns in the firewall)
+* Configure `~/.docker/config.json` on the client machine (the machine running the `oc-mirror` command)
+ * Run `$ echo -n init:<password> | base64` to encode the quay credentials
+ * Paste the encoded credentials under the `"auths"` section of the config:
+
+----
+    "auths": {
+      "<registry-hostname>:8443": {
+            "auth": "dXNlcm5hbWU6cGFzc3dvcmQ="
+      },
+    ...
+----
+
+* Create your imagesetconfig yaml file. It's recommended to use a local directory for metadata storage. For example:
+
+----
+   kind: ImageSetConfiguration
+   apiVersion: mirror.openshift.io/v1alpha2
+   storageConfig:
+     local:
+       path: /home/<username>/ocp-mirror/metadata/operators-4-12 <1>
+   mirror:
+     operators:
+     - catalog: registry.redhat.io/redhat/certified-operator-index:v4.12 <2>
+       packages:
+       - name: crunchy-postgres-operator <3>
+         channels:
+         - stable <4>
+       - name: gpu-operator-certified
+       - name: conjur-follower-operator
+       - name: mongodb-enterprise
+----
+<1> Local directory to store the metadata
+<2> The catalog index being mirrored (multiple catalogs can be defined)
+<3> Optionally, list the package names you wish to be mirrored. Any packages not listed will then be excluded.
+<4> Also optional, is to define the channels to mirror for each (or for specific) operators
+
+* Run the disk mirroring. You can define at this stage whether to mirror locally to a tar file (for a two-phase mirroring) or directly to the mirror-registry:
+
+  * For a single-stage mirror:
+
+    oc-mirror --dest-skip-tls docker://<registry-hostname>:8443/ocp-operators --skip-missing --continue-on-error
+
+  * Move the logs out of place:
+
+    mv .oc-mirror.log $(date +%Y%m%d)-oc-mirror-full.log
+
+  * For multi-stage mirror:
+
+   * First, to disk:
+
+     oc-mirror --file://$HOME/ocp-mirror/ --skip-missing --continue-on-error
+
+   * Move the logs out of place:
+
+     mv .oc-mirror.log $(date +%Y%m%d)-oc-mirror-to-disk.log
+
+   * Second, mirror from the tar file to the registry:
+
+     oc-mirror --dest-skip-tls --from $HOME/ocp-mirror/mirror_seq1_000000.tar docker://<registry-hostname>:8443/ocp-operators --skip-missing --continue-on-error
+
+   * Move the logs out of place again:
+
+     mv .oc-mirror.log $(date +%Y%m%d)-oc-mirror-to-registry.log
+
+NOTE: It is pretty much expected that oc-mirror will encounter errors along the way, especially if many operator images are being mirrored. Keep logs for future reference and troubleshooting.
+
+== Uninstalling the Mirror Registry
+
+By default, install data gets placed in `~/quay-install` while quay data is stored under `~/.local/share/containers` as a container volume (specifically, the `quay-storage` volume).
+
+To begin the uninstall, navigate to where you downloaded/extracted the `mirror-registry` tar file:
+
+  cd $HOME/mirror-registry
+
+Run the binary with the `uninstall` argument:
+
+  ./mirror-registry uninstall
+
+You will be prompted if you wish to continue (hit `Y`). This will uninstall the quay containers and any systemd init scripts created during the install.
+
+To remove the `quay-storage` volume (which will remove all of the registry data):
+
+  podman volume rm quay-storage
+
+That's it! You've removed the mirror registry from your host machine.

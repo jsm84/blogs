@@ -114,6 +114,7 @@ Most of these commands require cluster-admin privileges.
 
   oc edit oauth cluster
 
+----
   apiVersion: config.openshift.io/v1
   kind: OAuth
   metadata:
@@ -122,10 +123,13 @@ Most of these commands require cluster-admin privileges.
     identityProviders:
     - htpasswd:
         fileData:
-          name: <secret-name>  <--- name of secret created in the `openshift-config` namespace
+          name: <secret-name>  <1>
       mappingMethod: claim
-      name: <name>        <-------- typically the name is `htpasswd` but may be different
+      name: <name>        <2>
       type: HTPasswd
+----
+<1> name of secret created in the `openshift-config` namespace
+<2> typically the name is `htpasswd` but may be different
 
 NOTE: If you were successful, then saving/exiting the default `vi` editor will not throw any errors.
 
@@ -280,34 +284,47 @@ Make sure that all of your resources get created in the proper project.
 ** Create the PV (which maps to a certain NFS share) by editing an example `pv.yml` and setting the `name`,
 `capacity.storage`, `nfs.server`, `nfs.path`, `accessModes` and `ReclaimPolicy` fields accordingly:
 
-  apiVersion: v1
-  kind: PersistentVolume
-  metadata:
-    name: pv-example
-  spec:
-    capacity:
-      storage: 5Gi  <------------------------- define the storage volume size
-    accessModes:
-    - ReadWriteOnce|ReadOnlyMany  <----------- set the access mode
-    nfs:
-      path: /usr/share/nginx/html  <---------- nfs share path
-      server: 172.17.0.2  <------------------- server ip address / hostname
-    persistentVolumeReclaimPolicy: Retain  <-- what to do with storage afterward
+----
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: pv-example
+spec:
+  capacity:
+    storage: 5Gi  <1>
+  accessModes:
+  - ReadWriteOnce|ReadOnlyMany  <2>
+  nfs:
+    path: /usr/share/nginx/html  <3>
+    server: 172.17.0.2  <4>
+  persistentVolumeReclaimPolicy: Retain  <5>
+----
+<1> define the storage volume size
+<2> set the access mode
+<3> nfs share path
+<4> server ip address / hostname
+<5> what to do with storage afterward
 
 ** Create the PVC for the app by editing an example `pvc.yml` and changing the name of the PVC and the minimum required storage size:
 
-  apiVersion: v1
-  kind: PersistentVolumeClaim
-  metadata:
-    name: pvc-example
-  spec:
-    accessModes:
-    - ReadWriteOnce|ReadOnlyMany  <----- accessModes act as labels matching a PV
-    resources:
-      requests:
-        storage: 5Gi  <----------------- minimum storage claim
-    volumeName: pv-example  <----------- match the previously defined PV name
-    storageClassName: ""  <------------- no storage class is defined
+----
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pvc-example
+spec:
+  accessModes:
+  - ReadWriteOnce|ReadOnlyMany  <1>
+  resources:
+    requests:
+      storage: 5Gi  <2>
+  volumeName: pv-example  <3>
+  storageClassName: ""  <4>
+----
+<1> accessModes act as labels matching a PV
+<2> minimum storage claim
+<3> match the previously defined PV name
+<4> no storage class is defined
 
 ** Edit the app's deployment (or deploymentconfig) and set the `containers.volumeMount` and `spec.volumes:` section accordingly:
 
@@ -356,32 +373,41 @@ NOTE: Any bad value or misspelled resource name within the `--hard=<resources>` 
 
 * Create a `LimitRange` yaml file, which sets limits on specific resources (NOTE: `oc create limitrange` doesn't work):
 
-  apiVersion: v1
-  kind: LimitRange
-  metadata:
-    name: example-limits
-  spec:
-    limits:
-      - type: Pod
-        max:  <------------- maximum Pod limits
-          cpu: 2
-          memory: 1Gi
-        min:  <------------- minimum Pod limits
-          cpu: 200m
-          memory: 128Mi
-      - type: Container
-        defaultRequest:  <-- default Container requests (if pod template requests are empty)
-          cpu: 200m
-          memory: 128Mi
-        default:  <---------- default Container limits (if pod template limits are empty)
-          cpu: 1
-          memory: 512Mi
-        min:      <---------- minimum Container limits
-          cpu: 200m
-          memory: 128Mi
-        max:      <---------- maximum Container limits
-          cpu: 2
-          memory: 1Gi
+----
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: example-limits
+spec:
+  limits:
+    - type: Pod
+      max:  <1>
+        cpu: 2
+        memory: 1Gi
+      min:  <2>
+        cpu: 200m
+        memory: 128Mi
+    - type: Container
+      defaultRequest:  <3>
+        cpu: 200m
+        memory: 128Mi
+      default:  <4>
+        cpu: 1
+        memory: 512Mi
+      min:      <5>
+        cpu: 200m
+        memory: 128Mi
+      max:      <6>
+        cpu: 2
+        memory: 1Gi
+----
+<1> maximum Pod limits
+<2> minimum Pod limits
+<3> default Container requests (if pod template requests are empty)
+<4> default Container limits (if pod template limits are empty)
+<5> minimum Container limits
+<6> maximum Container limits
+
 
 === Enabling Developer Self Service
 
@@ -423,13 +449,17 @@ NOTE: The above resources will get created automatically whenever a new project 
 
   oc edit projects.config.openshift.io cluster
 
-  apiVersion: config.openshift.io/v1
-  kind: Project
-  metadata:
-    name: cluster
-  spec:                          <------ spec is empty (specified by `{}`) by default
-    projectRequestTemplate:
-      name: project-request      <------ default template name generated by `oc` command
+----
+apiVersion: config.openshift.io/v1
+kind: Project
+metadata:
+  name: cluster
+spec:                          <1>
+  projectRequestTemplate:
+    name: project-request      <2>
+----
+<1> spec is empty (specified by `{}`) by default
+<2> default template name generated by `oc` command
 
 === Networking Administration
 
@@ -481,21 +511,27 @@ NOTE: Use `oc get services` to obtain the `EXTERNAL-IP` to use to connect to a n
 
   oc edit deployment/<name>
 
-  ...
-    spec:
-      containers:
-      - name: example-container
-        ...
-        volumeMounts:
-        - name: <volume-name>  <------------------- must match `spec.volumes[].name`
-          readOnly: true
-          mountPath: /path/to/tls/serving/dir  <--- this directory is usually specified
-        ...
-      volumes:
-      - name: <volume-name>  <--------------------- name of this volume
-        secret:
-          secretName: <secret-name>  <------------- name of tls secret that was created
-      ....
+----
+...
+spec:
+  containers:
+  - name: example-container
+    ...
+    volumeMounts:
+    - name: <volume-name>  <1>
+      readOnly: true
+      mountPath: /path/to/tls/serving/dir  <2>
+    ...
+  volumes:
+  - name: <volume-name>  <3>
+    secret:
+      secretName: <secret-name>  <4>
+  ....
+----
+<1> must match `spec.volumes[].name`
+<2> this directory is usually specified
+<3> name of this volume
+<4> name of tls secret that was created
 
 * Create a passthrough (end-to-end encryption) route, provided that:
 ** A TLS secret was created using a provided certificate and private key
@@ -518,73 +554,100 @@ NOTE: Use `oc get services` to obtain the `EXTERNAL-IP` to use to connect to a n
 
   oc edit deployment/<name>
 
-  spec:
-    containers:
-    - name: client
-      ...
-      volumeMounts:
-      - mountPath: /etc/pki/ca-trust/extracted/pem  <--- default dir for CA certs in RHEL/Fedora
-        name: trusted-ca  <----------------------------- must match volume name defined below
-      ...
-    volumes:
-    - configMap:
-        defaultMode: 420
-        name: ca-bundle
-        items:
-        - key: service-ca.crt  <------------------------ key name of ca bundle in secret
-          path: tls-ca-bundle.pem  <-------------------- expected file name inside the container
-      name: trusted-ca
-    ....
+----
+spec:
+  containers:
+  - name: client
+    ...
+    volumeMounts:
+    - mountPath: /etc/pki/ca-trust/extracted/pem  <1>
+      name: trusted-ca  <2>
+    ...
+  volumes:
+  - configMap:
+      defaultMode: 420
+      name: ca-bundle
+      items:
+      - key: service-ca.crt  <3>
+        path: tls-ca-bundle.pem  <4>
+    name: trusted-ca
+  ....
+----
+<1> default dir for CA certs in RHEL/Fedora
+<2> must match volume name defined below
+<3> key name of ca bundle in secret
+<4> expected file name inside the container
 
 ==== Managing Network Policies
 
 * Define a default deny-all network-policy by using an empty `podSelector` and defining no ingress rules:
 
-  apiVersion: networking.k8s.io/v1
-  kind: NetworkPolicy
-  metadata:
-    name: deny-all
-  spec:
-    podSelector: {} <------------- empty podSelector applies to all pods in a namespace
-    ingress: []  <---------------- no ingress rules are defined, so none is allowd
+----
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: deny-all
+spec:
+  podSelector: {} <1>
+  ingress: []  <2>
+----
+<1> empty podSelector applies to all pods in a namespace
+<2> no ingress rules are defined, so none is allowd
 
 * Define a policy that applies to pods with the `app=db` label,
 and allows connections from pods labeled `app=wordpress` that exist in a namespace with the same label:
 
-  apiVersion: networking.k8s.io/v1
-  kind: NetworkPolicy
-  metadata:
-    name: allow-wordpress
-  spec:
-    podSelector:
-      matchLabels:
-        app: db  <---------------- apply policy to pods with this label
-    ingress: <-------------------- ingress accepts a list[] of `from` rules
-    - from:  <-------------------- from also accepts a list[] type
-      - podSelector:  <----------- multiple list items compound as a logical OR
-          matchLabels:  <--------- multiple labels mean logical AND (must match all)
-            app: wordpress  <----- allow ingress from pods with this label.
-        namespaceSelector:  <----- the additional selector acts as a logical AND
-          matchLabels:
-            app: wordpress  <----- allow ingress from namespaces with this label
+----
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-wordpress
+spec:
+  podSelector:
+    matchLabels:
+      app: db  <1>
+  ingress: <2>
+  - from:  <3>
+    - podSelector:  <4>
+        matchLabels:  <5>
+          app: wordpress  <6>
+      namespaceSelector:  <7>
+        matchLabels:
+          app: wordpress  <8>
+----
+<1> apply policy to pods with this label
+<2> ingress accepts a list[] of `from` rules
+<3> from also accepts a list[] type
+<4> multiple list items compound as a logical OR
+<5> multiple labels mean logical AND (must match all)
+<6> allow ingress from pods with this label.
+<7> the additional selector acts as a logical AND
+<8> allow ingress from namespaces with this label
+
 
 * Lastly, define a policy that applies to all pods in the current namespace,
 and allows connections from both the OpenShift routers and namespaces labeled `app=monitor`:
 
-  apiVersion: networking.k8s.io/v1
-  kind: NetworkPolicy
-  metadata:
-    name: allow-ingress-and-monitoring
-  spec:
-    podSelector: {}  <------------ empty pod selector applies to all pods in the namespace
-    ingress:
-    - from:
-      - namespaceSelector:
-          matchLabels:
-            app: monitor  <------- allow ingress from namespaces with this label
-      - namespaceSelector:  <----- note the hyphen `-` acts as a logical OR
-          matchLabels:
-            network.openshift.io/policy-group: ingress  <-- OpenShift router label (IMPORTANT)
+----
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-and-monitoring
+spec:
+  podSelector: {}  <1>
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          app: monitor  <2>
+    - namespaceSelector:  <3>
+        matchLabels:
+          network.openshift.io/policy-group: ingress  <4>
+----
+<1> empty pod selector applies to all pods in the namespace
+<2> allow ingress from namespaces with this label
+<3> note the hyphen `-` acts as a logical OR
+<4> OpenShift router label (IMPORTANT)
 
 ==== Attaching Networks Using Multics (N/A)
 
@@ -615,44 +678,54 @@ NOTE: You may not need to attach additional networks in an offline environment.
 
   vi example-network.yaml
 
-  apiVersion: "k8s.cni.cncf.io/v1"
-  kind: NetworkAttachmentDefinition
-  metadata:
-    name: example-network  <-------------------------------- name
-  spec:
-    config: '{
-              "cniVersion": "0.3.0",
-              "type": "host-device",  <--------------------- type
-              "device": "ens2",  <-------------------------- device
-              "ipam": {
-                  "type": "static",  <---------------------- ipam.type
-                  "addresses": [     <---------------------- ipam.addresses is a list[]
-                      {"address": "172.30.20.10/24"}
-                  ]
-              }
-          }'
+----
+apiVersion: "k8s.cni.cncf.io/v1"
+kind: NetworkAttachmentDefinition
+metadata:
+  name: example-network  <1>
+spec:
+  config: '{
+            "cniVersion": "0.3.0",
+            "type": "host-device",  <2>
+            "device": "ens2",  <3>
+            "ipam": {
+                "type": "static",  <4>
+                "addresses": [     <5>
+                    {"address": "172.30.20.10/24"}
+                ]
+            }
+        }'
+----
+<1> name
+<2> type
+<3> device
+<4> ipam.type
+<5> ipam.addresses is a list[]
 
 * Attach the network to a specific deployment (or deploymentconfig, etc) **at the template level**:
 
   oc edit deployment/<name>
 
-  ...
-  spec:
-    replicas: 1
-    selector:
-      matchLabels:
+----
+...
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: wordpress
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
         app: wordpress
-    strategy:
-      type: Recreate
-    template:
-      metadata:
-        labels:
-          app: wordpress
-        annotations:
-          k8s.v1.cni.cncf.io/networks: example-network <---- this attaches the example-network
-      spec:
-        containers:
-      ....
+      annotations:
+        k8s.v1.cni.cncf.io/networks: example-network <1>
+    spec:
+      containers:
+    ....
+----
+<1> this attaches the example-network
 
 === Managing Specific Resources
 
@@ -671,18 +744,22 @@ Secrets for TLS certificates were highlighted previously, but there is a specifi
 
   oc edit deployment/<name>
 
-  ...
-  spec:
-    containers:
-    - name: decoder
-      env:
-      - name: DECODE_ME  <------- name of environment variable
-        valueFrom:
-          secretKeyRef:
-            name: easter-egg  <-- secret name
-            key: decode_me  <---- key name
-      ...
-
+----
+...
+spec:
+  containers:
+  - name: decoder
+    env:
+    - name: DECODE_ME  <------- name of environment variable
+      valueFrom:
+        secretKeyRef:
+          name: easter-egg  <-- secret name
+          key: decode_me  <---- key name
+    ...
+----
+<1> name of environment variable
+<2> secret name
+<3> key name
 
 ==== Creating Cron Jobs
 
@@ -714,18 +791,21 @@ NOTE: Also refer to the `man 5 crontab` command to see how to run things every s
 
   vi crontab.yaml
 
-  apiVersion: batch/v1
-  kind: CronJob
-  metadata:
-    name: example-crontab
-  spec:
-    schedule: "*/1 * * * *"
-    concurrencyPolicy: Forbid
-    jobTemplate:
-      spec:
-        template:
-          spec:
-              <--------------- pod template goes here
+----
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: example-crontab
+spec:
+  schedule: "*/1 * * * *"
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        spec:
+            <1>
+----
+<1> pod template goes here
 
 ==== Using Health Probes
 
@@ -736,49 +816,68 @@ You may find it easier to copy/paste from another pod if you're stuck in an offl
 
 * The below example uses a generic `tcpSocket` probe for both liveness and readiness:
 
-  ...
-  spec:
-    containers:
-    - name: example
-      ...
-      ports:
-      - containerPort: 9090  <-------- port the container is listening on
-        protocol: TCP  <-------------- protocol the container is using
-      livenessProbe:
-        initialDelaySeconds: 10
-        periodSeconds: 30
-        tcpSocket:    <--------------- probe is set to use generic tcp
-          port: 9090  <--------------- port that the probe is targeting
-        timeoutSeconds:
-      readinessProbe:
-        initialDelaySeconds: 3  <----- how long to wait before the first probe
-        periodSeconds: 10  <---------- how often to run the probe (interval)
-        tcpSocket:
-          port: 9090
-        timeoutSeconds: 3  <---------- how long before a timeout occurs
-      ....
+----
+...
+spec:
+  containers:
+  - name: example
+    ...
+    ports:
+    - containerPort: 9090  <1>
+      protocol: TCP  <2>
+    livenessProbe:
+      initialDelaySeconds: 10
+      periodSeconds: 30
+      tcpSocket:    <3>
+        port: 9090  <4>
+      timeoutSeconds:
+    readinessProbe:
+      initialDelaySeconds: <5>
+      periodSeconds: 10  <6>
+      tcpSocket:
+        port: 9090
+      timeoutSeconds: 3  <7>
+    ....
+----
+<1> port the container is listening on
+<2> protocol the container is using
+<3> probe is set to use generic tcp
+<4> port that the probe is targeting
+<5> how long to wait before the first probe
+<6> how often to run the probe (interval)
+<7> how long before a timeout occurs
+
 
 * The following example uses an `httpGet` probe for liveness and readiness.
 Notice that there are no delays or timeouts specified, causing the default values to take effect:
 
-  ...
-    spec:
-      containers:
-      - name: stock
-        ...
-        ports:
-          - containerPort: 8443 <--- port the container is listening on
-        readinessProbe:
-          httpGet:  <--------------- probe is set to use http
-            port: 8443  <----------- port that the probe is targeting
-            path: /readyz  <-------- path on webserver being targeted
-            scheme: HTTPS  <-------- set HTTP or HTTPS accordingly
-        livenessProbe:
-          httpGet:
-            port: 8443
-            path: /livez
-            scheme: HTTPS
-       ....
+----
+...
+  spec:
+    containers:
+    - name: stock
+      ...
+      ports:
+        - containerPort: 8443 <1>
+      readinessProbe:
+        httpGet:  <2>
+          port: 8443  <3>
+          path: /readyz  <4>
+          scheme: HTTPS  <5>
+      livenessProbe:
+        httpGet:
+          port: 8443
+          path: /livez
+          scheme: HTTPS
+     ....
+----
+<1> port the container is listening on
+<2> probe is set to use http
+<3> port that the probe is targeting
+<4> path on webserver being targeted
+<5> set HTTP or HTTPS accordingly
+
+NOTE: You can also copy the readiness/liveness yaml bits from an example template on the system (check `/usr/share/openshift/examples/quickstart-templates`) or refer to the https://docs.openshift.com/container-platform/latest/rest_api/index.html[OpenShift API spec] to view the schema.
 
 === Provisioning Apps
 
@@ -800,7 +899,7 @@ Be sure to check whether a deployment or deploymentconfig (`oc get all`) exists 
 
 ==== Using OpenShift Templates (N/A)
 
-NOTE: OpenShift templates are essentially deprecated in favor of helm charts.
+NOTE: OpenShift templates are essentially superceded by helm charts, though this topic still does arise for OpenShift developers.
 
 * Create an application from a cluster-enabled (legacy OpenShift) template:
 
@@ -949,22 +1048,28 @@ A new `horizontalpodautoscaler` (or `hpa`) should exist in the current namespace
 
   oc get hpa <name> -o yaml
 
+----
   apiVersion: autoscaling/v1
   kind: HorizontalPodAutoscaler
   metadata:
-    name: example-app  <------------------ name will match the deployment
+    name: example-app  <1>
     namespace: example-project
   spec:
-    maxReplicas: 5  <---------------------- maximum replica count
-    minReplicas: 1  <---------------------- minimum replica count
+    maxReplicas: 5  <2>
+    minReplicas: 1  <3>
     scaleTargetRef:
       apiVersion: apps/v1
       kind: Deployment
       name: example-app
-    targetCPUUtilizationPercentage: 70  <-- target CPU % before scaling up/down
+    targetCPUUtilizationPercentage: 70  <4>
   status:
     currentReplicas: 3
     desiredReplicas: 0
+----
+<1> name will match the deployment
+<2> maximum replica count
+<3> minimum replica count
+<4> target CPU % before scaling up/down
 
 === Installing Operators
 
