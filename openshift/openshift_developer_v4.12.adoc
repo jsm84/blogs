@@ -2,6 +2,7 @@
 This is intended to be used as a reference guide for developer tasks on OpenShift v4.12.
 
 Topics of specific importance in this guide include:
+
 * <<conventions_requirements,Conventions and Requirements>>
  ** Using a <<simple_git_workflow,simple Git workflow>>
  ** <<using_s2i_overview,Using Source-to-Image>>
