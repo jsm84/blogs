@@ -27,11 +27,15 @@ Topics of specific importance in this guide include:
  ** <<test_instance,Creating a Test Instance>>
  ** <<prod_instance,Creating a Prod Instance>>
 * Creating an application using customized <<application_templates,OpenShift Templates>>
-* Develop CI/CD solutions using OpenShift Pipelines (Tekton)
+* <<openshift_pipelines,Introduction to OpenShift Pipelines (Tekton)>>
+ ** <<pipeline_overview,Pipeline Overview>>
+ ** <<example_task,Example Task>>
+ ** <<example_pipeline,Example Pipeline>>
+ ** <<example_trigger,Example Trigger>>
 
 === Conventions and Requirements [[conventions_requirements]]
 
-This section covers essential topics used throughout the rest of the guide.
+This section covers essential commands and workflows that are expected to be utilized for the rest of the guide.
 
 ==== Using a Simple Git Workflow [[simple_git_workflow]]
 
@@ -119,6 +123,7 @@ Delete a build config:
   oc delete bc/<name>
 
 ==== Debugging Commands [[debugging_commands]]
+
 This section lists advanced commands used for debugging and checking application output.
 Most of these commands require cluster-admin privileges.
 
@@ -155,6 +160,7 @@ Run commands as a different user:
 ==== Build and Troubleshoot a Source-to-Image (s2i) Application [[build_troubleshoot_s2i]]
 
 Build a node.js application (hastebin) from source using a git repo, with the following requirements:
+
 * Create a GitHub fork of the following repo: https://github.com/jsm84/hastebin-bf
 * Pass the `--name` flag to set the desired app name of `hastebin`
 * Use `--build-env` to pass a build variable of `npm_config_registry=<url>`
@@ -226,19 +232,21 @@ To fix this, we must lower the requested memory to be within the limit of the av
 In our case, we have a single node cluster w/12GiB of total memory, so the value must be less than this amount.
 Memory availability will of course vary across different OpenShift deployments, so the values shown here will likely differ.
 
-NOTE: It's best to request the minimal amount of memory necessary for the application to run, which for a static webserver is typically 1GiB or even less.
+NOTE: It's best to request the minimal amount of memory necessary for the application to run, which for a static web server is typically 1GiB or even less.
 
 ==== Troubleshoot Containerfile Builds [[build_troubleshoot_container]]
 
 Modify a Containerfile app (hosted at a remote git repo) so that it runs properly
 
 There are two different git projects comprising this example application:
+
 1. https://github.com/jsm84/gosimplehttpserver
     This is a simple go-based web server chosen to serve the example content.
 2. https://github.com/jsm84/gohugo-quickstart
     This is a quickstart website generated with `hugo` which uses the https://github.com/theNewDynamic/gohugo-theme-ananke[Ananke] theme.
 
 The application has the following requirements:
+
 * As before, you'll need to fork the https://github.com/jsm84/gohugo-quickstart repo on GitHub so that you can push changes to the repo.
 * All resources must be created in a namespace/project named `hugo`.
 * The application name of `quickstart`.
@@ -288,8 +296,9 @@ As the title conveys, this section goes a little more in-depth on the topic of S
 The "stock" (unmodified, upstream) S2I builder images can have their scripts overloaded (overridden) by providing your own scripts inside the `s2i/bin` directory within the application source repo.
 
 Two scripts are required for S2I:
+
 * `s2i/bin/assemble` script which builds code and reuses artifacts
-* `s2i/bin/run` script which gets set as the the entrypoint of the container image
+* `s2i/bin/run` script which gets set as the entrypoint of the container image
 
 NOTE: You must use the `exec` command when calling the `run` script via wrapper, to ensure that the script still runs as PID 1
 
@@ -353,7 +362,7 @@ Create an imagestream in the current project using `oc import-image <name> --fro
 
 When using `oc new-app`, remember to prefix the git URL using the name of the imagestream created in the previous step
 
-==== S2I Practice Scenario [[s2i_practice]]
+==== S2I Practice Scenario (optional) [[s2i_practice]]
 
 As an additional/optional challenge, try using the S2I build strategy on your own in an OpenShift setting.
 The application requirements are outlined here, but the process is left as an exercise for the reader.
@@ -371,7 +380,7 @@ HINT: Use `ENV DOCROOT=/var/www/html` and `ONBUILD COPY src/ ${DOCROOT}/` to ach
 NOTE: You must prefix the git URL using (`httpd~`) tilde notation (which disables the automatic code detection) to ensure that the `rhscl/httpd24-rhel7` builder image gets used (-i will not work since the code detection will fail)
 
 === Advanced Build Configuration [[advanced_build_configuration]]
-This section covers advanced topics when dealing with BuildConfig objects in OpenShift.
+This section covers advanced topics dealing with BuildConfig objects in OpenShift.
 
 To change the log level to verbose for a specific build:
 
@@ -492,7 +501,7 @@ spec:
 <1> Reference to pod name
 <2> Reference to pod namespace
 
-You can see both the name of the pod, and the namespace that the pod resides in are both made available as the environment variables `POD_NAME` and `POD_NAMESPACE`, respectively.
+You can see both the name of the pod, and the namespace that the pod resides in, are both made available as the environment variables `POD_NAME` and `POD_NAMESPACE`, respectively.
 
 === Health Probes [[health_probes]]
 
@@ -501,7 +510,7 @@ As with OpenShift administration, you'll need to add liveness and readiness prob
 HINT: Liveness and readiness probes are commonly defined for pods in the `openshift` namespaces.
 You may find it easier to copy/paste from another pod if you're stuck in an offline environment.
 
-* The below example uses a generic `tcpSocket` probe for both liveness and readiness:
+The below example uses a generic `tcpSocket` probe for both liveness and readiness:
 
 ----
   ...
@@ -535,7 +544,7 @@ You may find it easier to copy/paste from another pod if you're stuck in an offl
 <7> how long before a timeout occurs
 
 
-* The following example uses an `httpGet` probe for liveness and readiness.
+The following example uses an `httpGet` probe for liveness and readiness.
 Notice that there are no delays or timeouts specified, causing the default values to take effect:
 
 ----
@@ -561,23 +570,23 @@ Notice that there are no delays or timeouts specified, causing the default value
 <1> port the container is listening on
 <2> probe is set to use http
 <3> port that the probe is targeting
-<4> path on webserver being targeted
+<4> path on web server being targeted
 <5> set HTTP or HTTPS accordingly
 
 NOTE: You can also copy the readiness/liveness yaml bits from an example template on the system (check `/usr/share/openshift/examples/quickstart-templates`) or refer to the https://docs.openshift.com/container-platform/latest/rest_api/index.html[OpenShift API spec] to view the schema.
 
 === Deploying Multi-Instance Apps using Helm Charts [[helm_charts]]
 
-WARNING: You'll need the `helm` [binary](https://github.com/helm/helm/releases/latest) for your platform to continue.
+WARNING: You'll need the `helm` https://github.com/helm/helm/releases/latest[binary] for your platform to continue.
 
-Whereas there is also overlap with OpenShift administration when it comes to installing and managing helm charts,
-for development purposes, this guide mainly focuses on managing multiple deployments (such as development and production) of a particular chart.
+There is some overlap with OpenShift administration when it comes to installing and managing helm charts.
+However, for development purposes, this guide focuses on managing multiple deployments (such as development and production) of a particular chart.
 
-You will learn how to create multiple chart values overlays (similar to using `kustomize`) to use for installing different configurations of the same helm-based app.
+You will learn how to create chart values overlays (similar to using `kustomize`) to use for installing different configurations of the same helm-based app.
 
 ==== Initialize Helm [[init_helm]]
 
-In this example, we use the Cryostat helm chart for OpenShift in a multi-instance deployment.
+In this example, we use the cryostat helm chart for OpenShift in a multi-instance deployment.
 
 HINT: In some situations, the helm chart source will be provided for you. This step is provided to obtain a helm chart to use in the next two sections.
 
@@ -620,6 +629,7 @@ NOTE: You can also download the chart archive using `helm fetch <chartname>` and
 ==== Creating a Test Instance [[test_instance]]
 
 Given the previous insight, let's install a test instance of the cryostat chart, with the following specifications:
+
 * namespace/project should be called `cryostat-test`
 * data volume should be ephemeral / non-persistent
 * helm release name should also be `cryostat-test`
@@ -643,7 +653,49 @@ Verify that there were no PVC's created by using `oc get pvc`:
 
  No resources found in cryostat-test namespace.
 
-==== Creating a Prod Instance
+==== Creating a Prod Instance [[prod_instance]]
+
+Create a production instance of the same application, with the following requirements:
+
+* namespace/project name must be `cryostat-prod`
+* helm release name must also be `cryostat-prod`
+* must use persistent volumes for storage
+* storage volumes must be at least 1 GiB in size
+* volume must allow the `ReadWriteMany` access mode
+
+Create a new yaml file named `production.yaml` with the following values:
+
+----
+pvc:
+  enabled: true
+  size: 1Gi
+  accessModes:
+  - ReadWriteMany
+----
+
+Create a new namespace called `cryostat-prod`:
+
+  oc new-project cryostat-prod
+
+Install the `redhat-cryostat` chart as required, using the `production.yaml` for values, with the release name `cryostat-prod`:
+
+  helm install cryostat-prod openshift-charts/redhat-cryostat --values production.yaml
+
+Check to see that the chart deployed successfully using `helm list`:
+
+----
+NAME         	NAMESPACE    	REVISION	UPDATED                                	STATUS  	CHART         	APP VERSION
+cryostat-prod	cryostat-prod	1       	2024-06-20 12:19:20.645144365 -0400 EDT	deployed	cryostat-0.4.0	2.4.0.redhat
+----
+
+Make sure that the pvc(s) were created using using `oc get pvc`:
+
+----
+NAME            STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS                   AGE
+cryostat-prod   Bound    pvc-ab386471-d6da-4dee-9ea5-5c9a37c0fd5d   99Gi       RWX            crc-csi-hostpath-provisioner   7s
+----
+
+NOTE: Sometimes you may need to view the chart templates under the `/templates` directory in the source tree, **especially** `_helpers.tpl`, to obtain field names not seen in `values.yaml`.
 
 === Application Templates [[application_templates]]
 
@@ -685,7 +737,7 @@ Finally, create an application from the template, where `<template-name>` is the
   oc new-app <template-name>
 
 You may need to customize a template in certain circumstances.
-Parameter placeholders have a simalar syntax to shell variables (eg: `${PARAMETER_NAME}`) within a template.
+Parameter placeholders have a similar syntax to shell variables (eg: `${PARAMETER_NAME}`) within a template.
 
 Parameters are actually defined (and can be given default values) at the end of a template:
 
@@ -707,7 +759,442 @@ Parameters are actually defined (and can be given default values) at the end of 
 Note that two of the parameters are `required` and given default values.
 Also note that random string generation is possible when given a character class (such as `[a-zA-Z0-9]`) and a length value (such as `{40}`).
 
-
 === OpenShift Pipelines [[openshift_pipelines]]
 
-**TO DO**
+As an OpenShift developer, you'll need to know how to use OpenShift Pipelines, an open source CI/CD offering based on the upstream Tekton project.
+
+OpenShift Pipelines are comprised of these basic building blocks:
+
+* *Tasks* - yaml definitions outlining a set of _steps_ to perform
+** *Steps* - the smallest building block of tekton. Steps define the container image and command/script to run, as well as arguments, working directory, etc.
+* *Pipeline* - yaml object made up of a set of _tasks_ that are executed in sequence
+** *Finally Tasks* - `finally` tasks run at the end of a pipeline and are always executed, regardless if the pipeline failed or succeeded (useful for cleanup tasks).
+** *Workspace* - a shared storage volume used by tasks to receive/provide input/output (respectively)
+* *PipelineRun* - a pipeline instance bound to a set of workspaces and credentials, which also contains parameters specific to the CI/CD workflow
+* *TaskRun* - executes a task on-cluster with specific input, output and runtime parameters. A `PipelineRun` creates a `TaskRun` for each task in a pipeline.
+* *Triggers* - used in conjunction with pipelines to capture external events, then mapping info from the event into parameters used for task input.
+** *TriggerBinding* - used to extract fields from an event payload, which get stored as parameters
+** *TriggerTemplate* - specifies how the parameters from the `TriggerBinding` should be used
+
+==== Pipeline Overview [[pipeline_overview]]
+
+Here, we take a deeper dive into an example OpenShift Pipeline.
+We'll use the https://github.com/redhat-openshift-ecosystem/operator-pipelines[Operator Certification Pipelines] for this purpose.
+
+==== Example Task [[example_task]]
+
+Lets take a look at the `buildah` task from the https://github.com/redhat-openshift-ecosystem/operator-pipelines/blob/main/ansible/roles/operator-pipeline/templates/openshift/tasks/buildah.yml[operator-pipelines] project:
+
+----
+apiVersion: tekton.dev/v1
+kind: Task <1>
+metadata:
+  name: buildah
+spec:
+  description: |-
+    Buildah task builds source into a container image and then pushes
+    it to a container registry. Buildah Task builds source into a container
+    image using Project Atomic's Buildah build tool.It uses Buildah's support
+    for building from Dockerfiles, using its buildah bud command.
+    This command executes the directives in the Dockerfile to
+    assemble a container image, then pushes that image to a container registry.
+  params: <2>
+    - description: Reference of the image buildah will produce.
+      name: IMAGE
+      type: string
+    - default: registry.redhat.io/rhel8/buildah@sha256:a1e5cc0fb334e333e5eab69689223e8bd1f0c060810d260603b26cf8c0da2023
+      description: The location of the buildah builder image.
+      name: BUILDER_IMAGE
+      type: string
+    - default: vfs
+      description: Set buildah storage driver
+      name: STORAGE_DRIVER
+      type: string
+    - default: ./Dockerfile
+      description: Path to the Dockerfile to build.
+      name: DOCKERFILE
+      type: string
+    - default: .
+      description: Path to the directory to use as context.
+      name: CONTEXT
+      type: string
+    - default: "true"
+      description: >-
+        Verify the TLS on the registry endpoint (for push/pull to a non-TLS
+        registry)
+      name: TLSVERIFY
+      type: string
+    - default: docker
+      description: The format of the built container, oci or docker
+      name: FORMAT
+      type: string
+    - default: ""
+      description: Extra parameters passed for the build command when building images.
+      name: BUILD_EXTRA_ARGS
+      type: string
+    - default: ""
+      description: Extra parameters passed for the push command when pushing images.
+      name: PUSH_EXTRA_ARGS
+      type: string
+  results: <3>
+    - description: Digest of the image just built.
+      name: IMAGE_DIGEST
+  steps: <4>
+    - image: $(params.BUILDER_IMAGE)
+      name: build
+      computeResources: {}
+      script: |
+        set -xe
+
+        if [ -z "$(params.CONTEXT)" ]; then
+          echo "No bundle added or changed"
+          exit 0
+        fi
+
+        echo "Building $(params.IMAGE)"
+        buildah --storage-driver=$(params.STORAGE_DRIVER) bud \
+          $(params.BUILD_EXTRA_ARGS) --format=$(params.FORMAT) \
+          --tls-verify=$(params.TLSVERIFY) --no-cache \
+          -f $(params.DOCKERFILE) -t $(params.IMAGE) $(params.CONTEXT)
+
+        EXTRA_ARGS=""
+        if [[ "$(workspaces.credentials.bound)" == "true" ]]; then
+          EXTRA_ARGS+=" --authfile $(workspaces.credentials.path)/.dockerconfigjson"
+        fi
+
+        if [[ "$(workspaces.cacert.bound)" == "true" ]]; then
+          export SSL_CERT_FILE=$(workspaces.cacert.path)/registry-ca.crt
+        fi
+
+        echo "Pushing $(params.IMAGE)"
+        buildah --storage-driver=$(params.STORAGE_DRIVER) push \
+          $(params.PUSH_EXTRA_ARGS) $EXTRA_ARGS --tls-verify=$(params.TLSVERIFY) \
+          --digestfile /digest/image-digest $(params.IMAGE) \
+          docker://$(params.IMAGE)
+
+        cat /digest/image-digest | tee /tekton/results/IMAGE_DIGEST
+      volumeMounts:
+        - mountPath: /home/build/.local/share/containers
+          name: varlibcontainers
+        - mountPath: /digest
+          name: digest
+      securityContext:
+        privileged: true
+      workingDir: $(workspaces.source.path)
+  volumes: <5>
+    - emptyDir: {}
+      name: varlibcontainers
+    - emptyDir: {}
+      name: digest
+  workspaces: <6>
+    - name: source
+    - name: credentials
+      optional: true
+    - name: cacert
+      optional: true
+----
+<1> Notice the type meta for the object. A `Task` is a kubernetes custom resource type, which is enabled when the OpenShift Pipelines operator gets installed on a cluster.
+<2> The list of parameters for this task. The `params` field is a list of keys and values, along with the data type and an optional default value. These are used as input for the steps defined further down.
+<3> In the `results` field, the output from `buildah` is captured into a key named `IMAGE_DIGEST`.
+<4> Here is where the `steps` are defined. There is only one step defined in this task, named `build`.
+<5> `volumes` can also be explicitly defined for a single task
+<6> `workspaces` are shared volumes, which can be used as an IPC (inter-process communication) mechanism to join input and output of separate tasks.
+
+==== Example Pipeline [[example_pipeline]]
+
+Now that we've explored what `tasks` look like, let's examine the https://github.com/redhat-openshift-ecosystem/operator-pipelines/blob/main/ansible/roles/operator-pipeline/templates/openshift/pipelines/operator-ci-pipeline.yml[ci-pipeline] from the operator-pipelines project (shortened because it's ~500 lines of yaml):
+
+----
+apiVersion: tekton.dev/v1
+kind: Pipeline <1>
+metadata:
+  name: operator-ci-pipeline
+spec:
+  params: <2>
+    - name: git_repo_url
+    - name: git_branch
+      description: git branch name
+    - name: git_username
+      default: "digestPinning"
+    - name: git_email
+      default: "no-reply@redhat.com"
+    - name: gitInitImage
+      description: The image providing the git-init binary that the checkout task runs.
+      type: string
+      default: "registry.redhat.io/openshift-pipelines/pipelines-git-init-rhel8@sha256:a538c423e7a11aae6ae582a411fdb090936458075f99af4ce5add038bb6983e8"
+    - name: upstream_repo_name
+      default: ""
+      description: Upstream repository where the pull request will be opened (namespace/name)
+    - name: upstream_repo_branch
+      default: main
+      description: Branch in the upstream repo to use as the base for the pull request
+    - name: bundle_path
+    - name: builder_image
+      default: "registry.redhat.io/rhel8/buildah@sha256:a1e5cc0fb334e333e5eab69689223e8bd1f0c060810d260603b26cf8c0da2023"
+    - name: registry
+      default: image-registry.openshift-image-registry.svc:5000
+    - name: podman_image
+      description: Podman image
+      default: "registry.redhat.io/rhel8/podman:8.7"
+    - name: env
+      description: Which environment to run in. Can be one of [dev, qa, stage, prod]
+      default: "prod"
+    - name: image_namespace
+      default: $(context.pipelineRun.namespace)
+      description: The namespace/organization all built images will be pushed to.
+    - name: preflight_namespace
+      default: $(context.pipelineRun.namespace)
+      description: The namespace to use when running Preflight
+    - name: preflight_service_account
+      default: default
+      description: The service account to use when running Preflight
+    ...
+  workspaces: <3>
+    - name: pipeline
+    - name: ssh-dir
+      optional: true
+    - name: registry-credentials
+      optional: true
+    - name: registry-cacert
+      optional: true
+  tasks: <4>
+    - name: set-env
+      taskRef: <5>
+        name: set-env
+        kind: Task
+      params:
+        - name: env
+          value: $(params.env)
+        - name: access_type
+          value: "external"
+
+    - name: checkout
+      runAfter:
+        - set-env
+      taskRef:
+        name: git-clone
+        kind: Task
+      params:
+        - name: url
+          value: $(params.git_repo_url)
+        - name: revision
+          value: $(params.git_branch)
+        - name: gitInitImage
+          value: $(params.gitInitImage)
+      workspaces:
+        - name: output
+          workspace: pipeline
+          subPath: src
+        - name: ssh-directory
+          workspace: ssh-dir
+    ...
+  finally: <6>
+    - name: upload-pipeline-logs
+      taskRef:
+        name: upload-pipeline-logs
+      when:
+        - input: $(params.submit)
+          operator: in
+          values:
+            - "true"
+      params:
+        - name: pipeline_image
+          value: "$(params.pipeline_image)"
+        - name: md5sum
+          value: "$(tasks.content-hash.results.md5sum)"
+        - name: cert_project_id
+          value: "$(tasks.certification-project-check.results.certification_project_id)"
+        - name: bundle_version
+          value: "$(tasks.bundle-path-validation.results.bundle_version)"
+        - name: package_name
+          value: "$(tasks.bundle-path-validation.results.package_name)"
+        - name: pyxis_url
+          value: "$(tasks.set-env.results.pyxis_url)"
+        - name: pipeline_name
+          value: "$(context.pipeline.name)"
+        - name: pipelinerun_name
+          value: "$(context.pipelineRun.name)"
+        - name: pyxis_api_key_secret_name
+          value: "$(params.pyxis_api_key_secret_name)"
+        - name: pyxis_api_key_secret_key
+          value: "$(params.pyxis_api_key_secret_key)"
+      workspaces:
+        - name: source
+          workspace: pipeline
+
+    - name: show-support-link
+      taskRef:
+        name: show-support-link
+      params:
+        - name: pipeline_image
+          value: "$(params.pipeline_image)"
+        - name: env
+          value: "$(params.env)"
+        - name: cert_project_id
+          value: "$(tasks.certification-project-check.results.certification_project_id)"
+----
+<1> Noting k8s type meta again, a `Pipeline` is also a custom resource, enabled similarly to tasks when the OpenShift Pipelines operator is installed.
+<2> <3> Parameters and workspaces can be defined at the pipeline level, as with tasks.
+<4> <5> Here begins the `tasks` list, which references task names (defined elsewhere) via the `taskRef` field
+<6> Finally tasks are used in this pipeline for uploading logs and displaying a user-specific URL for support
+
+==== Trigger Example [[trigger_example]]
+
+To close out our OpenShift Pipelines overview (and this guide), let's take a look at how triggers can be used to initiate pipelines.
+Using the https://github.com/redhat-openshift-ecosystem/operator-pipelines/blob/main/ansible/roles/operator-pipeline/tasks/operator-hosted-pipeline-trigger.yml[hosted-pipeline trigger] as an example:
+
+----
+- name: Create trigger enabling running Hosted pipeline via GitHub webhook <1>
+  tags:
+    - triggers
+  block:
+    - name: Create Hosted pipeline Trigger Binding
+      kubernetes.core.k8s:
+        state: present
+        namespace: "{{ oc_namespace }}"
+        definition:
+          # To see the PR webhook payload, set the logLevel to debug in configmap config-logging-triggers
+          # Other GitHub PR webhook payload example: https://docs.github.com/en/developers/webhooks-and-events/webhooks/webhook-events-and-payloads#pull_request
+          apiVersion: triggers.tekton.dev/v1alpha1
+          kind: TriggerBinding <2>
+          metadata:
+            name: operator-hosted-pipeline-trigger-binding
+            labels:
+              app: operator-pipeline
+              suffix: "{{ suffix }}"
+              env: "{{ env }}"
+          spec:
+            params: <3>
+              - name: git_pr_url
+                value: $(body.pull_request.html_url)
+              - name: git_fork_url
+                value: $(body.pull_request.head.repo.clone_url)
+              - name: git_repo_url
+                value: $(body.pull_request.base.repo.clone_url)
+              - name: git_username
+                value: $(body.pull_request.user.login)
+              - name: git_commit
+                value: $(body.pull_request.head.sha)
+              - name: git_commit_base
+                value: $(body.pull_request.base.sha)
+              - name: env
+                value: "{{ env }}"
+              - name: preflight_trigger_environment
+                value: "{{ preflight_trigger_environment }}"
+              - name: image_namespace
+                value: "{{ operator_pipeline_pending_namespace }}"
+              - name: pipeline_image
+                value: "{{ operator_pipeline_image_pull_spec }}"
+              - name: quay_oauth_secret_name
+                value: "quay-oauth-token"
+              - name: kerberos_keytab_secret_key
+                value: "krb5-isv-pending.keytab"
+              - name: hydra_sso_token_url
+                value: "{{ operator_pipeline_hydra_sso_token_url }}"
+              - name: static_test_suites
+                value: operatorcert.static_tests.isv,operatorcert.static_tests.common
+
+    - name: Create Hosted pipeline Trigger Template
+      kubernetes.core.k8s:
+        state: present
+        namespace: "{{ oc_namespace }}"
+        definition:
+          apiVersion: triggers.tekton.dev/v1alpha1
+          kind: TriggerTemplate <4>
+          metadata:
+            name: operator-hosted-pipeline-trigger-template
+            labels:
+              app: operator-pipeline
+              suffix: "{{ suffix }}"
+              env: "{{ env }}"
+          spec:
+            params:
+              - name: git_commit_base
+              - name: git_pr_url
+              - name: git_fork_url
+              - name: git_repo_url
+              - name: git_username
+              - name: git_commit
+              - name: env
+              - name: preflight_trigger_environment
+              - name: pipeline_image
+              - name: image_namespace
+              - name: hydra_sso_token_url
+              - name: static_test_suites
+            resourcetemplates:
+              - apiVersion: tekton.dev/v1
+                kind: PipelineRun <5>
+                metadata:
+                  generateName: operator-hosted-pipeline-run
+                  labels:
+                    app: operator-pipeline
+                    suffix: "{{ suffix }}"
+                    env: "{{ env }}"
+                    git_commit: $(tt.params.git_commit)
+                  annotations:
+                    git_pull_request_url: $(tt.params.git_pr_url)
+                spec:
+                  timeouts:
+                    pipeline: "2h"
+                    tasks: "1h50m"
+                  pipelineRef:
+                    name: operator-hosted-pipeline <6>
+                  params:
+                    - name: git_commit_base
+                      value: $(tt.params.git_commit_base) <7>
+                    - name: git_pr_url
+                      value: $(tt.params.git_pr_url)
+                    - name: git_fork_url
+                      value: $(tt.params.git_fork_url)
+                    - name: git_repo_url
+                      value: $(tt.params.git_repo_url)
+                    - name: git_username
+                      value: $(tt.params.git_username)
+                    - name: env
+                      value: $(tt.params.env)
+                    - name: git_commit
+                      value: $(tt.params.git_commit)
+                    - name: pipeline_image
+                      value: $(tt.params.pipeline_image)
+                    - name: image_namespace
+                      value: $(tt.params.image_namespace)
+                    - name: hydra_sso_token_url
+                      value: $(tt.params.hydra_sso_token_url)
+                    - name: static_test_suites
+                      value: $(tt.params.static_test_suites)
+                  workspaces:
+                    - name: repository
+                      volumeClaimTemplate:
+                        spec:
+                          accessModes:
+                            - ReadWriteOnce
+                          resources:
+                            requests:
+                              storage: 5Gi
+                    - name: results
+                      volumeClaimTemplate:
+                        spec:
+                          accessModes:
+                            - ReadWriteOnce
+                          resources:
+                            requests:
+                              storage: 100Mi
+                    - name: registry-credentials-all
+                      volumeClaimTemplate:
+                        spec:
+                          accessModes:
+                            - ReadWriteOnce
+                          resources:
+                            requests:
+                              storage: 100Mi
+                    - name: registry-credentials
+                      secret:
+                        secretName: hosted-pipeline-registry-auth-secret
+----
+<1> No type meta this time. The Operator Certification Pipeline is actually implemented as a set of ansible roles, which in turn create OpenShift Pipelines objects on a cluster.
+<2> This is where the `TriggerBinding` gets defined, which will get created on the cluster
+<3> The parameter list is the sole function of the `TriggerBinding`. Notice in the list how we're taking json bodies from requests and assigning them to named parameters.
+<4> The `TriggerTemplate` definition begins here. Notice how the `params` list aligns perfectly with those from the `TriggerBinding`.
+<5> A `PipelineRun` is defined as part of the `TriggerTemplate`.
+<6> The `operator-hosted-pipeline` defined by the `pipelineRef` field, will be executed by this `PipelineRun`.
+<7> Lastly, notice the Downward API-esque parameter referencing, which brings the parameter values from the `TriggerBinding` all the way down into the `operator-hosted-pipeline`.
