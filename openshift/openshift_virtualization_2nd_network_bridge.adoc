@@ -7,11 +7,14 @@ Doing this enables connections to external networks, which includes other pods/V
 
 NOTE: A Linux bridge network attachment definition (NAD) is the simplest way to connect VM(s) to a VLAN.
 
+IMPORTANT: This guide assumes that VMs have already been created in OpenShift Virtualization prior to being modified.
+Parts of this guide will require a namespace to be setup for the VMs which are being attached to a Linux bridge network.
+
 The process is broken down into the following steps:
 
 * <<install_nmstate_operator,Install NMState Operator>> onto the cluster.
 ** <<nmstate_operator_gui_procedure,OpenShift console procedure for NMState Operator>>
-* <<create_nncp_linux_bridge,Create a Node Network Configuration Policy (NNCP) object>> to define the Linux bridge.
+* <<create_linux_bridge_nncp,Create a Node Network Configuration Policy (NNCP) object>> to define the Linux bridge.
 ** <<create_nncp_prereqs,Prerequisites for creating a NNCP object>>
 ** <<create_nncp_cli_procedure,CLI procedure to create a NNCP object>>
 ** <<create_nncp_gui_procedure,OpenShift console procedure to create a NNCP object>>
@@ -20,6 +23,7 @@ The process is broken down into the following steps:
 ** <<create_nad_cli_procedure,CLI procedure to create a NAD object>>
 ** <<create_nad_gui_procedure,OpenShift console procedure to create a NAD object>>
 * <<configure_vm_nic, Configure the VM network interface connection (NIC)>> to connect the VM to the Linux bridge network.
+** <<vm_nic_prereqs,Prerequisites for configuring the VM NIC>>
 ** <<vm_nic_gui_prcoedure,OpenShift console procedure to configure the VM NIC>>
 ** <<vm_nic_cli_procedure,CLI procedure to configure the VM NIC>>
 
@@ -47,7 +51,8 @@ Wait until the web console displays the `Web console update is available` pop up
 
 NOTE: On later versions of OpenShift, you may instead be logged out of the OpenShift console automatically, and you must then re-authenticate.
 
-From the navigation menu, expand *Networking* and check for the *NodeNetworkConfigurationPolicy* and *NodeNetworkState* items. These should both exist before proceeding.
+From the navigation menu, expand *Networking* and check for the *NodeNetworkConfigurationPolicy* and *NodeNetworkState* items.
+These should both exist before proceeding with <<create_linux_bridge_nncp,creating  NodeNetworkConfigurationPolicy (NNCP)>>.
 
 ==== Procedure using the CLI: [[nmstate_operator_cli_procedure]]
 Before proceeding, authenticate to your OpenShift cluster's API as a cluster-admin.
@@ -101,9 +106,9 @@ spec: {}
 NOTE: `nmstate` objects are cluster scoped, so a namespace is not required. Only one `nmstate` (also named `nmstate`) should exist on the cluster.
 
 The `nmstate` object will trigger the NMState operator to install the `NodeNetworkConfigurationPolicy` and `NodeNetworkState` APIs (CRDs).
-Once these APIs are available, proceed with <<create_nncp_bridge,creating a linux bridge network device>>.
+Once these APIs are available, proceed with <<create_linux_bridge_nncp,creating a linux bridge network device>>.
 
-=== Create a Linux Bridge NodeNetworkConfigurationPolicy (NNCP) [[create_nncp_bridge]]
+=== Create a Linux Bridge NodeNetworkConfigurationPolicy (NNCP) [[create_linux_bridge_nncp]]
 The first step is to define the Linux bridge on the cluster nodes using a NodeNetworkConfigurationPolicy (NNCP).
 NNCP objects are cluster-scoped, so they do not exist in a namespace.
 You can, however control which node(s)/host(s) to which the NNCP applies using key/value labels.
@@ -122,14 +127,14 @@ In the web frame, you'll see a button to *Create NodeNetworkConfigurationPolicy*
 
 Complete the web form items as desired:
 
-*Policy Name*: Set this to `lnbr0-policy` for the sake of this example
-*Description* (optional): Add an optional description, for example `inux bridge lnbr0 with node port ens1`
-*Interface Name*: Set this to `lnbr0` for this example
-*Network state*: Leave *Up* selected 
-*Type*: Linux bridge
-*IP configuration* (optional): Check *IPv4* _only_ if you wish to set a static or DHCP address. Otherwise, leave this option unchecked (layer2-only).
-*Port* (optional): Enter the name of a hardware interface on the node, which will be used to connect the bridge network externally (including to pods/VMs on other nodes/hosts).
-*Enable STP* (optional): Check this if you want to enable spanning tree protocol for the bridge network.
+* *Policy Name*: Set this to `lnbr0-policy` for the sake of this example
+* *Description* (optional): Add an optional description, for example `linux bridge lnbr0 with node port ens1`
+* *Interface Name*: Set this to `lnbr0` for this example
+* *Network state*: Leave *Up* selected 
+* *Type*: Linux bridge
+* *IP configuration* (optional): Check *IPv4* _only_ if you wish to set a static or DHCP address. Otherwise, leave this option unchecked (layer2-only).
+* *Port* (optional): Enter the name of a hardware interface on the node, which will be used to connect the bridge network externally (including to pods/VMs on other nodes/hosts).
+* *Enable STP* (optional): Check this if you want to enable spanning tree protocol for the bridge network.
 
 Once the form is complete, click *Create*.
 
@@ -153,7 +158,7 @@ Use one of the example yaml templates that aligns with your use-case below, past
 * Whether configured as layer2, dhcp, or static, this affects the bridge interface addressing only, and does not affect pods/VMs.
 ====
 
-.Static Configuration Example 
+.Static Configuration Example
 ----
 apiVersion: nmstate.io/v1
 kind: NodeNetworkConfigurationPolicy
@@ -179,7 +184,7 @@ spec:
         port: ens1
 ----
 
-.DHCP Configuration Example 
+.DHCP Configuration Example
 ----
 apiVersion: nmstate.io/v1
 kind: NodeNetworkConfigurationPolicy
@@ -263,8 +268,10 @@ The NAD is what allows pods/VMs within a specific project/namespace to connect t
 While not strictly required to create a network attachment definition, a NNCP defining the bridge interface must exist on the cluster before you attach a pod/VM to a bridge network. 
 Neglecting to do so will prevent any VM with a bridge-based NIC from booting.
 
+IMPORTANT: A namespace containing VMs must either exist or be created before proceeding.
+
 ==== Procedure using the CLI: [[create_nad_cli_procedure]]
-It may be necessary to change to the project/namespace of the VMs before proceeding (replace `bridge-demo` with the namespace for where the VMs reside):
+It is necessary to change to the project/namespace of the VMs before proceeding (replace `bridge-demo` with the namespace for where the VMs reside):
 
 ----
 oc project bridge-demo
@@ -305,7 +312,7 @@ Each field from the above example is explained below (optional fields are shown 
 ** *"vlan"* (optional): The desired VLAN ID of the interface (defaults to `1`).
 ** *"macspoofchk"* (optional): Enables mac spoof check, limiting traffic originating from the container to the mac address of the interface (defaults to `false`).
 ** *"disableContainerInterface"* (optional): Disables the interface (veth peer) within the container, which disables IPAM. This does not affect IPAM usage within OpenShift Virtualization since it's not supported (defaults to `false`).
-** *"*portIsolation"* (optional): Set isolation on the host interface. This prevents containers from communicating with each other, enforcing communication only with the host or through the gateway. (defaults to `false`)
+** *"portIsolation"* (optional): Set isolation on the host interface. This prevents containers from communicating with each other, enforcing communication only with the host or through the gateway. (defaults to `false`)
 
 [IMPORTANT]
 ====
@@ -313,8 +320,6 @@ Each field from the above example is explained below (optional fields are shown 
 * The NAD must exist in the same namespace as the pods/VMs.
 * OpenShift Virtualization does not support https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/10/html/configuring_and_managing_networking/configuring-a-network-bond#upstream-switch-configuration-depending-on-the-bonding-modes[Linux bridge bonding modes] 0, 5, and 6.
 ====
-
-NOTE: To connect a VM to the native network without VLANs, configure the NAD manifest without specifying any VLAN.
 
 Create the network attachment definition on OpenShift using the yaml file:
 
@@ -325,7 +330,7 @@ oc create -f network-attachment-definition.yaml
 Verify that the NAD was successfully created:
 
 ----
-oc get network-attachment-definition lnbr0-nad`.
+oc get network-attachment-definition lnbr0-nad
 ----
 
 With two of the three components in place, the last step is to <<configure_vm_nic,add a new virtual network adapter to the VM(s)>>.
@@ -363,8 +368,10 @@ You should see the network attachment definition show up in the list once it's c
 === Configuring the VM Network Interface [[configure_vm_nic]]
 Finally, you configure the virtual machine to use the newly created Linux bridge network attachment definition.
 
-==== Prerequisites [[
+==== Prerequisites [[vm_nic_prereqs]]
 The NMState operator, along with the `nmstate`, `nncp` and `network-attachment-definition` resources, should all exist in the cluster (the latter in the respective namespace of the VMs) before proceeding.
+
+The VMs must also already exist in OpenShift Virtualzation before proceeding. The VMs do not have to be running, but changes to running VMs will require restarting (or live migrating) before taking effect.
 
 ==== Procedure using the OpenShift Console: [[vm_nic_console_procedure]]
 Navigate to *Virtualization* > *VirtualMachines*.
@@ -375,7 +382,7 @@ On the *Configuration* tab, then click the *Network* tab.
 
 Click *Add network interface*.
 
-Enter the interface Name and select the network attachment definition from the Network list.
+Enter the interface Name and select the network attachment definition (`lnbr0-nad` in this example) from the Network list.
 
 Click *Save*.
 
@@ -434,7 +441,7 @@ spec:
 
 Reviewing the two primary fields in the above example:
 
-* *spec.template.spec.domain.device.interfaces*:
+* *spec.template.spec.domain.devices.interfaces*:
 ** *`bridge`*: an empty definition `{}` here is sufficient.
 ** *`macAddress`*: You specify a mac address or leave this field empty and it will auto-generate.
 ** *`model`*: `virtio` (virtualized hardware) is chosen over `e1000` (emulated adapter) for performance gains in Linux.
